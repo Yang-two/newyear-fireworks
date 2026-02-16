@@ -337,6 +337,9 @@
         force60Mode: true,
         imageCount: 15,
         imagePrefix: './picture/',
+        backgroundMusicPath: './music/1.mp3',
+        backgroundMusicVolume: 0.34,
+        introHoldExtraMs: 0,
 
         phase: {
             photoShow: 'photoShow',
@@ -353,10 +356,10 @@
         photoStreakCountLow: [360, 520],
         photoBurstExpandMs: [280, 380],
         photoBurstFadeMs: [1180, 1680],
-        photoRevealShadowMs: [250, 450],
-        photoRevealGrowMs: [450, 900],
-        photoRevealHoldMs: [900, 1400],
-        photoRevealFadeMs: [520, 820],
+        photoRevealShadowMs: [100, 180],
+        photoRevealGrowMs: [260, 520],
+        photoRevealHoldMs: [1700, 2600],
+        photoRevealFadeMs: [900, 1500],
 
         streakSpeedFactor: [0.011, 0.020],
         streakWidth: [1.1, 2.8],
@@ -416,13 +419,13 @@
         clearAlphaLow: 0.22,
 
         finaleDelayAfterLastBurst: [1500, 2500],
-        finaleHoldMs: 12000,
+        finaleHoldMs: 15000,
         finaleVolleyIntervalForce60: [900, 1400],
         finaleVolleyCountRangeForce60: [1, 2],
         finaleBurstCountForce60: [34, 56],
         finaleParticleCapForce60: 150,
         finaleParticleFrameSkipForce60: 2,
-        finaleGreetingText: 'XYT新年快乐！！！马年顺遂！！！'
+        finaleGreetingText: 'XYT新年快乐！！！\n马年顺遂！！！'
     };
 
     const ua = navigator.userAgent || '';
@@ -460,7 +463,8 @@
         finaleFading: false,
         finaleFadeStart: 0,
         finaleGreetingShown: false,
-        finaleGreetingStart: 0
+        finaleGreetingStart: 0,
+        startScheduled: false
     };
 
     const canvas = document.getElementById('canvas');
@@ -519,6 +523,8 @@
         stroke: '',
         fill: ''
     };
+    let bgMusic = null;
+    let bgMusicStarted = false;
 
     const photoHaloCache = new Map();
     const photoRingCache = new Map();
@@ -531,6 +537,7 @@
     const spawnTasks = [];
     let spawnBudget = Infinity;
     let frameTick = 0;
+    let startDelayTimer = 0;
 
     if (isMobile || isWeChat) {
         CONFIG.maxParticlesPhotoHigh = 460;
@@ -559,6 +566,39 @@
 
     function nowMs() {
         return performance.now();
+    }
+
+    function initBackgroundMusic() {
+        if (bgMusic) return bgMusic;
+        const audio = new Audio(CONFIG.backgroundMusicPath);
+        audio.loop = true;
+        audio.preload = 'auto';
+        audio.volume = CONFIG.backgroundMusicVolume;
+        try {
+            audio.playsInline = true;
+            audio.setAttribute('playsinline', '');
+            audio.setAttribute('webkit-playsinline', '');
+        } catch (e) {
+            // Ignore unsupported inline attributes.
+        }
+        bgMusic = audio;
+        return bgMusic;
+    }
+
+    function playBackgroundMusic() {
+        const audio = initBackgroundMusic();
+        if (!audio) return;
+        if (bgMusicStarted && !audio.paused) return;
+        const p = audio.play();
+        if (p && typeof p.then === 'function') {
+            p.then(() => {
+                bgMusicStarted = true;
+            }).catch(() => {
+                // Auto-play may be blocked until user gesture.
+            });
+            return;
+        }
+        bgMusicStarted = true;
     }
 
     function setTitleLoadingBlink(isLoading) {
@@ -786,9 +826,15 @@
         if (!STATE.finaleGreetingShown) return;
         const text = CONFIG.finaleGreetingText;
         if (!text) return;
+        const lines = String(text).split('\n').filter(Boolean);
+        if (lines.length === 0) return;
 
         const pulse = 0.92 + Math.sin(now * 0.0038) * 0.08;
         const fontSize = Math.max(34, Math.min(72, Math.round(STATE.minDim * 0.075)));
+        const lineGap = Math.round(fontSize * 0.34);
+        const lineHeight = fontSize + lineGap;
+        const totalHeight = lineHeight * (lines.length - 1);
+        let y = STATE.height * 0.5 - totalHeight * 0.5;
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
@@ -798,7 +844,10 @@
         ctx.fillStyle = '#ffe7a8';
         ctx.shadowBlur = 20 * pulse;
         ctx.shadowColor = 'rgba(255,215,130,0.75)';
-        ctx.fillText(text, STATE.width * 0.5, STATE.height * 0.5);
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], STATE.width * 0.5, y);
+            y += lineHeight;
+        }
         ctx.restore();
     }
 
@@ -907,7 +956,7 @@
         ];
         for (let i = 0; i < streakTotal; i++) {
             const a = (i / streakTotal) * Math.PI * 2 + rand(-0.016, 0.016);
-            const inner = rr * rand(0.10, 0.22);
+            const inner = rr * rand(0.04, 0.14);
             const len = rr * rand(0.82, 1.08);
             const lw = rand(1.0, 2.6) * (STATE.lowPowerMode ? 0.95 : 1.15);
             g.globalAlpha = rand(0.36, 0.9);
@@ -946,6 +995,15 @@
         g.fillStyle = glow;
         g.beginPath();
         g.arc(0, 0, rr * 1.28, 0, Math.PI * 2);
+        g.fill();
+
+        const centerMist = g.createRadialGradient(0, 0, 0, 0, 0, rr * 0.48);
+        centerMist.addColorStop(0, STATE.lowPowerMode ? 'rgba(210,230,255,0.22)' : 'rgba(210,230,255,0.30)');
+        centerMist.addColorStop(0.52, STATE.lowPowerMode ? 'rgba(165,196,255,0.12)' : 'rgba(165,196,255,0.17)');
+        centerMist.addColorStop(1, 'rgba(165,196,255,0)');
+        g.fillStyle = centerMist;
+        g.beginPath();
+        g.arc(0, 0, rr * 0.48, 0, Math.PI * 2);
         g.fill();
 
         // Core flash is pre-composited into burst sprite to avoid per-frame gradient cost.
@@ -1556,7 +1614,7 @@
                 this.stageElapsed = 0;
             }
 
-            if (this.burstElapsed > this.revealOutMs + 800) {
+            if (this.burstElapsed > this.revealOutMs + 1400) {
                 this.dead = true;
             }
         }
@@ -1618,25 +1676,38 @@
 
         drawPhoto(g) {
             if (this.stage !== photoStage.fallReveal) return;
-            const img = photoCache[this.imageIndex];
+            let img = photoCache[this.imageIndex];
+            if (!img) {
+                const src = images[this.imageIndex];
+                if (src && src.complete && src.naturalWidth > 0) {
+                    buildPhotoCacheItem(this.imageIndex);
+                    img = photoCache[this.imageIndex];
+                }
+            }
             if (!img) return;
 
             const t = this.burstElapsed;
-            if (t < this.revealShadowMs) return;
-
             let alpha = 0;
             let scale = 0.92;
-            if (t < this.revealGrowMs) {
+            if (t < this.revealShadowMs) {
+                const p = clamp(t / Math.max(1, this.revealShadowMs), 0, 1);
+                alpha = 0.05 + p * 0.11;
+                scale = 0.92 + p * 0.06;
+            } else if (t < this.revealGrowMs) {
                 const p = (t - this.revealShadowMs) / Math.max(1, this.revealGrowMs - this.revealShadowMs);
-                alpha = 0.04 + (1 - Math.pow(1 - p, 2.2)) * 0.96;
-                scale = 0.92 + p * 0.16;
+                alpha = 0.16 + (1 - Math.pow(1 - p, 2.2)) * 0.84;
+                scale = 0.98 + p * 0.12;
             } else if (t < this.revealHoldMs) {
                 alpha = 1;
                 scale = 1.08 + Math.sin((t - this.revealGrowMs) * 0.009) * 0.012;
             } else if (t < this.revealOutMs) {
                 const p = (t - this.revealHoldMs) / Math.max(1, this.revealOutMs - this.revealHoldMs);
-                alpha = 1 - p;
-                scale = 1.08 + p * 0.06;
+                alpha = 1 - p * 0.78;
+                scale = 1.08 + p * 0.05;
+            } else if (t < this.revealOutMs + 420) {
+                const p = (t - this.revealOutMs) / 420;
+                alpha = 0.22 * (1 - p);
+                scale = 1.13 + p * 0.03;
             } else {
                 return;
             }
@@ -2220,7 +2291,7 @@
             STATE.assetsLoaded = true;
             setTitleLoadingBlink(false);
             rebuildPhotoCache();
-            startShow();
+            scheduleStartShow();
         }
 
         for (let i = 1; i <= CONFIG.imageCount; i++) {
@@ -2603,6 +2674,11 @@
 
     function startShow() {
         if (STATE.running) return;
+        if (startDelayTimer) {
+            clearTimeout(startDelayTimer);
+            startDelayTimer = 0;
+        }
+        STATE.startScheduled = false;
         STATE.running = true;
         STATE.phase = CONFIG.phase.photoShow;
         STATE.mainImageIndex = 1;
@@ -2624,6 +2700,21 @@
         rafId = requestAnimationFrame(loop);
     }
 
+    function scheduleStartShow() {
+        if (STATE.running || STATE.startScheduled) return;
+        const waitMs = Math.max(0, CONFIG.introHoldExtraMs | 0);
+        if (waitMs <= 0) {
+            startShow();
+            return;
+        }
+        STATE.startScheduled = true;
+        startDelayTimer = window.setTimeout(() => {
+            startDelayTimer = 0;
+            STATE.startScheduled = false;
+            if (!STATE.running) startShow();
+        }, waitMs);
+    }
+
     function bindVisibilityPause() {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -2631,6 +2722,9 @@
                 if (STATE.running && rafId) {
                     cancelAnimationFrame(rafId);
                     rafId = 0;
+                }
+                if (bgMusic && !bgMusic.paused) {
+                    bgMusic.pause();
                 }
                 return;
             }
@@ -2640,6 +2734,7 @@
                 lastTs = nowMs();
                 if (!rafId) rafId = requestAnimationFrame(loop);
             }
+            playBackgroundMusic();
         });
     }
 
@@ -2670,11 +2765,14 @@
             loadImagesThenStart();
             return;
         }
-        if (STATE.assetsLoaded && !STATE.running) startShow();
+        if (STATE.assetsLoaded && !STATE.running) scheduleStartShow();
     }
 
     function bindStartFallback() {
-        const onceStart = () => ensureStarted();
+        const onceStart = () => {
+            playBackgroundMusic();
+            ensureStarted();
+        };
         document.addEventListener('touchstart', onceStart, { passive: true, once: true });
         document.addEventListener('click', onceStart, { passive: true, once: true });
     }
@@ -2702,6 +2800,10 @@
         bindDebugToggle();
         bindVisibilityPause();
         bindStartFallback();
+        if (isWeChat) {
+            document.addEventListener('WeixinJSBridgeReady', playBackgroundMusic, false);
+        }
+        playBackgroundMusic();
 
         setTitleLoadingBlink(true);
         ensureStarted();
