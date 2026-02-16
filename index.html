@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <!--
-性能优化说明（移动端/微信重点）：
-1) 移除 visualViewport.scroll 触发，避免地址栏滚动导致高频 resize 抖动。
-2) resize 改为 requestAnimationFrame 节流，同一帧只执行一次 applyViewportSize。
-3) applyViewportSize 增加 early-return（尺寸变化 <2px 直接返回），避免重复重设画布。
-4) 运行中缓存重建增加条件门控：仅 DPR 变化或 minDim 变化超过 9% 时触发。
-5) 照片缓存改为分帧增量重建（每帧 1~2 张），防止单帧阻塞。
-6) finale 阶段跳过照片缓存重建，避免无效开销。
-7) 移动端降低 lighter/shadowBlur/centerFlash/fog 的开销，低功耗进一步降级。
-8) 粒子发射加入严格预算限流，避免瞬时峰值导致掉帧尖峰。
-9) rAF 恢复时钳制大 dt，降低后台切回前台后的闪烁与卡顿。
+鎬ц兘浼樺寲璇存槑锛堢Щ鍔ㄧ/寰俊閲嶇偣锛夛細
+1) 绉婚櫎 visualViewport.scroll 瑙﹀彂锛岄伩鍏嶅湴鍧€鏍忔粴鍔ㄥ鑷撮珮棰?resize 鎶栧姩銆?
+2) resize 鏀逛负 requestAnimationFrame 鑺傛祦锛屽悓涓€甯у彧鎵ц涓€娆?applyViewportSize銆?
+3) applyViewportSize 澧炲姞 early-return锛堝昂瀵稿彉鍖?<2px 鐩存帴杩斿洖锛夛紝閬垮厤閲嶅閲嶈鐢诲竷銆?
+4) 杩愯涓紦瀛橀噸寤哄鍔犳潯浠堕棬鎺э細浠?DPR 鍙樺寲鎴?minDim 鍙樺寲瓒呰繃 9% 鏃惰Е鍙戙€?
+5) 鐓х墖缂撳瓨鏀逛负鍒嗗抚澧為噺閲嶅缓锛堟瘡甯?1~2 寮狅級锛岄槻姝㈠崟甯ч樆濉炪€?
+6) finale 闃舵璺宠繃鐓х墖缂撳瓨閲嶅缓锛岄伩鍏嶆棤鏁堝紑閿€銆?
+7) 绉诲姩绔檷浣?lighter/shadowBlur/centerFlash/fog 鐨勫紑閿€锛屼綆鍔熻€楄繘涓€姝ラ檷绾с€?
+8) 绮掑瓙鍙戝皠鍔犲叆涓ユ牸棰勭畻闄愭祦锛岄伩鍏嶇灛鏃跺嘲鍊煎鑷存帀甯у皷宄般€?
+9) rAF 鎭㈠鏃堕挸鍒跺ぇ dt锛岄檷浣庡悗鍙板垏鍥炲墠鍙板悗鐨勯棯鐑佷笌鍗￠】銆?
 -->
 <html lang="zh-CN">
 <head>
@@ -17,7 +17,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>新年烟花</title>
+    <title>XYT新年快乐</title>
     <style>
         :root {
             --vvh: 100vh;
@@ -311,7 +311,7 @@
             <div class="horse-decoration horse-right">🐎</div>
 
             <div class="festive-text-box">
-                <p class="title main loading-title loading-blink">新年大吉</p>
+                <p class="title main loading-title loading-blink">新年快乐</p>
                 <p class="title subline loading-title loading-blink">马年大吉</p>
             </div>
         </div>
@@ -324,17 +324,22 @@
 <script>
 /*
  * WeChat compatibility notes
- * 1) Canvas 仅使用 2D；先尝试 {alpha:false, desynchronized:true}，失败回退普通 2D。
- * 2) 图片路径使用 ./picture/x.jpg，相对路径可直接用于同域 H5。
- * 3) 自动加载完成后直接开始；click/touch 仍作为兜底触发，不显示任何点击提示文案。
- * 4) resize 每次先 setTransform(1,0,0,1,0,0) 再 setTransform(dpr,0,0,dpr,0,0)，避免缩放累积。
- * 5) visibilitychange 切后台暂停渲染，回前台恢复，减少微信后台耗电和卡顿。
+ * 1) Canvas 浠呬娇鐢?2D锛涘厛灏濊瘯 {alpha:false, desynchronized:true}锛屽け璐ュ洖閫€鏅€?2D銆?
+ * 2) 鍥剧墖璺緞浣跨敤 ./picture/x.jpg锛岀浉瀵硅矾寰勫彲鐩存帴鐢ㄤ簬鍚屽煙 H5銆?
+ * 3) 鑷姩鍔犺浇瀹屾垚鍚庣洿鎺ュ紑濮嬶紱click/touch 浠嶄綔涓哄厹搴曡Е鍙戯紝涓嶆樉绀轰换浣曠偣鍑绘彁绀烘枃妗堛€?
+ * 4) resize 姣忔鍏?setTransform(1,0,0,1,0,0) 鍐?setTransform(dpr,0,0,dpr,0,0)锛岄伩鍏嶇缉鏀剧疮绉€?
+ * 5) visibilitychange 鍒囧悗鍙版殏鍋滄覆鏌擄紝鍥炲墠鍙版仮澶嶏紝鍑忓皯寰俊鍚庡彴鑰楃數鍜屽崱椤裤€?
  */
 
 (() => {
     const CONFIG = {
+        // Force-60 mode: aggressive frame budget + staged particle spawning.
+        force60Mode: true,
         imageCount: 15,
         imagePrefix: './picture/',
+        backgroundMusicPath: './music/1.mp3',
+        backgroundMusicVolume: 0.34,
+        introHoldExtraMs: 2000,
 
         phase: {
             photoShow: 'photoShow',
@@ -344,14 +349,21 @@
         photoGapMs: [2200, 3200],
         photoTargetX: [0.20, 0.80],
         photoTargetY: [0.12, 0.40],
-        photoBurstRadiusHigh: [0.38, 0.48],
-        photoBurstRadiusLow: [0.30, 0.40],
-        photoStreakCountHigh: [240, 340],
-        photoStreakCountLow: [150, 230],
+        photoRocketFlightSec: [0.8, 1.3],
+        photoBurstRadiusHigh: [0.42, 0.52],
+        photoBurstRadiusLow: [0.38, 0.48],
+        photoStreakCountHigh: [460, 660],
+        photoStreakCountLow: [360, 520],
+        photoBurstExpandMs: [280, 380],
+        photoBurstFadeMs: [1180, 1680],
+        photoRevealShadowMs: [250, 450],
+        photoRevealGrowMs: [450, 900],
+        photoRevealHoldMs: [900, 1400],
+        photoRevealFadeMs: [520, 820],
 
-        streakSpeedFactor: [0.010, 0.018],
-        streakWidth: [0.9, 2.2],
-        streakLifeMs: [860, 1480],
+        streakSpeedFactor: [0.011, 0.020],
+        streakWidth: [1.1, 2.8],
+        streakLifeMs: [980, 1700],
         rocketTrailPerFrame: 2,
 
         shadowBlurStrong: [12, 20],
@@ -364,8 +376,8 @@
         photoFadeInMs: 250,
         photoHoldMs: 1450,
         photoFadeOutMs: 680,
-        photoDiameterRatio: [0.38, 0.50],
-        haloDiameterRatio: [0.55, 0.70],
+        photoDiameterRatio: [0.56, 0.68],
+        haloDiameterRatio: [0.92, 1.12],
         featherRatio: 0.18,
 
         miniGapHigh: [1200, 1800],
@@ -387,8 +399,8 @@
         finaleEndMode: 'loop',
         finaleFadeoutMs: 5000,
 
-        maxParticlesPhotoHigh: 760,
-        maxParticlesPhotoLow: 500,
+        maxParticlesPhotoHigh: 560,
+        maxParticlesPhotoLow: 420,
         maxParticlesFinaleHigh: 920,
         maxParticlesFinaleLow: 700,
 
@@ -406,7 +418,14 @@
         clearAlphaHigh: 0.20,
         clearAlphaLow: 0.22,
 
-        finaleDelayAfterLastBurst: [1500, 2500]
+        finaleDelayAfterLastBurst: [1500, 2500],
+        finaleHoldMs: 15000,
+        finaleVolleyIntervalForce60: [900, 1400],
+        finaleVolleyCountRangeForce60: [1, 2],
+        finaleBurstCountForce60: [34, 56],
+        finaleParticleCapForce60: 150,
+        finaleParticleFrameSkipForce60: 2,
+        finaleGreetingText: 'XYT新年快乐！！！马年顺遂！！！'
     };
 
     const ua = navigator.userAgent || '';
@@ -442,7 +461,10 @@
         nextFinaleVolleyAt: 0,
         finalePendingAt: 0,
         finaleFading: false,
-        finaleFadeStart: 0
+        finaleFadeStart: 0,
+        finaleGreetingShown: false,
+        finaleGreetingStart: 0,
+        startScheduled: false
     };
 
     const canvas = document.getElementById('canvas');
@@ -477,7 +499,13 @@
 
     const rockets = [];
     const bursts = [];
-    const photoOverlays = [];
+    const photoFireworks = [];
+
+    const photoStage = {
+        rocketUp: 'rocketUp',
+        burstExpand: 'burstExpand',
+        fallReveal: 'fallReveal'
+    };
 
     const activeParticles = [];
     const particlePool = [];
@@ -495,16 +523,33 @@
         stroke: '',
         fill: ''
     };
+    let bgMusic = null;
+    let bgMusicStarted = false;
+
+    const photoHaloCache = new Map();
+    const photoRingCache = new Map();
+    const flashSpriteCache = new Map();
+    const finaleShellCache = new Map();
+    const lineBatchMap = new Map();
+    const fillBatchMap = new Map();
+    const nightStars = [];
+    const festiveDots = [];
+    const spawnTasks = [];
+    let spawnBudget = Infinity;
+    let frameTick = 0;
+    let startDelayTimer = 0;
 
     if (isMobile || isWeChat) {
-        CONFIG.maxParticlesPhotoHigh = 600;
-        CONFIG.maxParticlesPhotoLow = 380;
+        CONFIG.maxParticlesPhotoHigh = 460;
+        CONFIG.maxParticlesPhotoLow = 320;
         CONFIG.maxParticlesFinaleHigh = 720;
         CONFIG.maxParticlesFinaleLow = 520;
         CONFIG.finaleStreakCountHigh = [140, 210];
         CONFIG.finaleStreakCountLow = [90, 150];
         CONFIG.dprHighCap = 1.25;
         CONFIG.dprLowCap = 1.05;
+        CONFIG.photoStreakCountHigh = [420, 600];
+        CONFIG.photoStreakCountLow = [320, 460];
     }
 
     function rand(min, max) {
@@ -523,6 +568,39 @@
         return performance.now();
     }
 
+    function initBackgroundMusic() {
+        if (bgMusic) return bgMusic;
+        const audio = new Audio(CONFIG.backgroundMusicPath);
+        audio.loop = true;
+        audio.preload = 'auto';
+        audio.volume = CONFIG.backgroundMusicVolume;
+        try {
+            audio.playsInline = true;
+            audio.setAttribute('playsinline', '');
+            audio.setAttribute('webkit-playsinline', '');
+        } catch (e) {
+            // Ignore unsupported inline attributes.
+        }
+        bgMusic = audio;
+        return bgMusic;
+    }
+
+    function playBackgroundMusic() {
+        const audio = initBackgroundMusic();
+        if (!audio) return;
+        if (bgMusicStarted && !audio.paused) return;
+        const p = audio.play();
+        if (p && typeof p.then === 'function') {
+            p.then(() => {
+                bgMusicStarted = true;
+            }).catch(() => {
+                // Auto-play may be blocked until user gesture.
+            });
+            return;
+        }
+        bgMusicStarted = true;
+    }
+
     function setTitleLoadingBlink(isLoading) {
         for (let i = 0; i < loadingTitles.length; i++) {
             if (isLoading) loadingTitles[i].classList.add('loading-blink');
@@ -531,12 +609,25 @@
     }
 
     function currentSparkleChance() {
-        if (STATE.lowPowerMode || STATE.fps < 50) return 0;
+        if (CONFIG.force60Mode) {
+            if (STATE.fps < 55) return 0.01;
+            if (isMobile || isWeChat) return 0.06;
+            return 0.12;
+        }
+        if (STATE.lowPowerMode) return STATE.fps < 48 ? 0 : 0.02;
+        if (STATE.fps < 50) return 0.05;
         if (isMobile || isWeChat) return 0.18;
         return 0.32;
     }
 
     function currentParticleLimit() {
+        if (CONFIG.force60Mode && STATE.phase === CONFIG.phase.finale) {
+            let cap = CONFIG.finaleParticleCapForce60;
+            if (STATE.fps < 50) cap = Math.round(cap * 0.85);
+            if (STATE.fps < 44) cap = Math.round(cap * 0.72);
+            if (STATE.fps < 38) cap = Math.round(cap * 0.58);
+            return Math.max(72, cap);
+        }
         const q = STATE.qualityScale;
         if (STATE.phase === CONFIG.phase.finale) {
             return Math.round(CONFIG.maxParticlesFinaleLow + (CONFIG.maxParticlesFinaleHigh - CONFIG.maxParticlesFinaleLow) * q);
@@ -544,11 +635,592 @@
         return Math.round(CONFIG.maxParticlesPhotoLow + (CONFIG.maxParticlesPhotoHigh - CONFIG.maxParticlesPhotoLow) * q);
     }
 
+    function currentSpawnBudget() {
+        if (!CONFIG.force60Mode) return Infinity;
+        let budget = (isMobile || isWeChat) ? 90 : 150;
+        if (STATE.phase === CONFIG.phase.finale) budget += 35;
+        if (STATE.fps < 58) budget = Math.round(budget * 0.82);
+        if (STATE.fps < 52) budget = Math.round(budget * 0.68);
+        if (STATE.fps < 46) budget = Math.round(budget * 0.52);
+        if (STATE.fps < 40) budget = Math.round(budget * 0.38);
+        if (STATE.lowPowerMode) budget = Math.round(budget * 0.86);
+        return Math.max(24, budget);
+    }
+
+    function enqueueSpawnTask(count, maxPerFrame, emitOne) {
+        if (count <= 0) return;
+        if (CONFIG.force60Mode && spawnTasks.length > 56) {
+            // Drop oldest queued workloads to protect frame time under extreme bursts.
+            spawnTasks.shift();
+        }
+        spawnTasks.push({
+            remaining: count,
+            maxPerFrame: Math.max(1, maxPerFrame | 0),
+            emitOne
+        });
+    }
+
+    function processSpawnTasks() {
+        if (spawnTasks.length === 0) return;
+        for (let i = 0; i < spawnTasks.length;) {
+            if (CONFIG.force60Mode && spawnBudget <= 0) break;
+            const task = spawnTasks[i];
+            let emitted = 0;
+            const hardCap = CONFIG.force60Mode
+                ? Math.min(task.maxPerFrame, task.remaining, spawnBudget)
+                : Math.min(task.maxPerFrame, task.remaining);
+            while (emitted < hardCap) {
+                const p = getParticle();
+                if (!p) break;
+                task.emitOne(p);
+                task.remaining -= 1;
+                emitted += 1;
+            }
+            if (task.remaining <= 0 || emitted === 0) {
+                if (task.remaining <= 0) {
+                    spawnTasks.splice(i, 1);
+                    continue;
+                }
+                i += 1;
+                continue;
+            }
+            i += 1;
+        }
+    }
+
     function calcScaledRange(highRange, lowRange) {
         const q = STATE.qualityScale;
         const min = Math.round(lowRange[0] + (highRange[0] - lowRange[0]) * q);
         const max = Math.round(lowRange[1] + (highRange[1] - lowRange[1]) * q);
         return [Math.min(min, max), Math.max(min, max)];
+    }
+
+    function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+    function quantize(v, step) {
+        return Math.max(step, Math.round(v / step) * step);
+    }
+
+    function rebuildBackgroundDecor() {
+        nightStars.length = 0;
+        festiveDots.length = 0;
+
+        const area = Math.max(1, STATE.width * STATE.height);
+        let starCount = (isMobile || isWeChat) ? 85 : 170;
+        starCount += Math.round(area / 24000);
+        if (STATE.lowPowerMode) starCount = Math.round(starCount * 0.7);
+        starCount = Math.max(70, Math.min(240, starCount));
+
+        for (let i = 0; i < starCount; i++) {
+            nightStars.push({
+                x: Math.random() * STATE.width,
+                y: Math.pow(Math.random(), 1.28) * STATE.height * 0.9,
+                size: rand(0.8, 2.2),
+                alpha: rand(0.28, 0.95),
+                twinkle: rand(0.8, 2.4),
+                phase: rand(0, Math.PI * 2),
+                color: Math.random() < 0.8 ? '#cfe2ff' : '#e8f2ff'
+            });
+        }
+
+        let dotCount = (isMobile || isWeChat) ? 28 : 56;
+        dotCount += Math.round(area / 65000);
+        if (STATE.lowPowerMode) dotCount = Math.round(dotCount * 0.75);
+        dotCount = Math.max(24, Math.min(90, dotCount));
+
+        const dotColors = ['#ffd56a', '#ffca5e', '#ffe3a8', '#ffb66d'];
+        for (let i = 0; i < dotCount; i++) {
+            festiveDots.push({
+                x: Math.random() * STATE.width,
+                y: Math.random() * STATE.height,
+                size: rand(1.4, 3.8),
+                alpha: rand(0.08, 0.24),
+                twinkle: rand(0.6, 1.7),
+                phase: rand(0, Math.PI * 2),
+                color: pick(dotColors)
+            });
+        }
+    }
+
+    function drawPhotoShowBackground(now, clearA) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+
+        const tintAlpha = clamp(clearA + 0.1, 0.18, 0.45);
+        ctx.fillStyle = `rgba(3,9,30,${tintAlpha})`;
+        ctx.fillRect(0, 0, STATE.width, STATE.height);
+
+        const sky = ctx.createLinearGradient(0, 0, 0, STATE.height);
+        sky.addColorStop(0, 'rgba(10,24,68,0.42)');
+        sky.addColorStop(0.55, 'rgba(8,20,58,0.30)');
+        sky.addColorStop(1, 'rgba(4,10,30,0.22)');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, STATE.width, STATE.height);
+
+        const moonGlow = ctx.createRadialGradient(
+            STATE.width * 0.78,
+            STATE.height * 0.2,
+            0,
+            STATE.width * 0.78,
+            STATE.height * 0.2,
+            STATE.minDim * 0.32
+        );
+        moonGlow.addColorStop(0, 'rgba(112,152,255,0.20)');
+        moonGlow.addColorStop(1, 'rgba(112,152,255,0)');
+        ctx.fillStyle = moonGlow;
+        ctx.fillRect(0, 0, STATE.width, STATE.height);
+
+        const t = now * 0.001;
+        for (let i = 0; i < nightStars.length; i++) {
+            const s = nightStars[i];
+            const pulse = 0.58 + 0.42 * Math.sin(t * s.twinkle + s.phase);
+            ctx.globalAlpha = s.alpha * pulse;
+            ctx.fillStyle = s.color;
+            ctx.fillRect(s.x, s.y, s.size, s.size);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function drawFinaleBackground(now, clearA) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+
+        const tintAlpha = clamp(clearA + 0.06, 0.15, 0.36);
+        ctx.fillStyle = `rgba(48,6,12,${tintAlpha})`;
+        ctx.fillRect(0, 0, STATE.width, STATE.height);
+
+        const festive = ctx.createLinearGradient(0, 0, 0, STATE.height);
+        festive.addColorStop(0, 'rgba(125,12,28,0.30)');
+        festive.addColorStop(0.55, 'rgba(96,10,24,0.22)');
+        festive.addColorStop(1, 'rgba(56,6,14,0.20)');
+        ctx.fillStyle = festive;
+        ctx.fillRect(0, 0, STATE.width, STATE.height);
+
+        const centerGlow = ctx.createRadialGradient(
+            STATE.width * 0.5,
+            STATE.height * 0.48,
+            0,
+            STATE.width * 0.5,
+            STATE.height * 0.48,
+            STATE.minDim * 0.6
+        );
+        centerGlow.addColorStop(0, 'rgba(255,82,82,0.14)');
+        centerGlow.addColorStop(1, 'rgba(255,82,82,0)');
+        ctx.fillStyle = centerGlow;
+        ctx.fillRect(0, 0, STATE.width, STATE.height);
+
+        const t = now * 0.001;
+        for (let i = 0; i < festiveDots.length; i++) {
+            const d = festiveDots[i];
+            const pulse = 0.65 + 0.35 * Math.sin(t * d.twinkle + d.phase);
+            ctx.globalAlpha = d.alpha * pulse;
+            ctx.fillStyle = d.color;
+            ctx.fillRect(d.x, d.y, d.size, d.size);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function drawFinaleGreeting(now) {
+        if (!STATE.finaleGreetingShown) return;
+        const text = CONFIG.finaleGreetingText;
+        if (!text) return;
+
+        const pulse = 0.92 + Math.sin(now * 0.0038) * 0.08;
+        const fontSize = Math.max(34, Math.min(72, Math.round(STATE.minDim * 0.075)));
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `900 ${fontSize}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+        ctx.fillStyle = '#ffe7a8';
+        ctx.shadowBlur = 20 * pulse;
+        ctx.shadowColor = 'rgba(255,215,130,0.75)';
+        ctx.fillText(text, STATE.width * 0.5, STATE.height * 0.5);
+        ctx.restore();
+    }
+
+    function drawPhaseBackground(now, clearA) {
+        if (STATE.phase === CONFIG.phase.finale) {
+            drawFinaleBackground(now, clearA);
+            return;
+        }
+        drawPhotoShowBackground(now, clearA);
+    }
+
+    function clearRenderCaches() {
+        photoHaloCache.clear();
+        photoRingCache.clear();
+        flashSpriteCache.clear();
+        finaleShellCache.clear();
+    }
+
+    function getPhotoHaloSprite(photoDiameter, haloDiameter) {
+        const pd = quantize(photoDiameter, 8);
+        const hd = Math.max(pd + 8, quantize(haloDiameter, 8));
+        const dprQ = STATE.lowPowerMode ? 1 : (Math.round(Math.min(1.35, STATE.dpr) * 10) / 10);
+        const key = `${pd}_${hd}_${STATE.lowPowerMode ? 1 : 0}_${dprQ}`;
+        const cached = photoHaloCache.get(key);
+        if (cached) return cached;
+
+        const spriteDpr = STATE.lowPowerMode ? 1 : Math.min(1.35, STATE.dpr);
+        const drawSize = Math.ceil(hd * 1.35);
+        const off = document.createElement('canvas');
+        off.width = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        off.height = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        const g = off.getContext('2d');
+        if (!g) return null;
+
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.setTransform(spriteDpr, 0, 0, spriteDpr, 0, 0);
+
+        const cx = drawSize * 0.5;
+        const cy = drawSize * 0.5;
+        const rOuter = hd * 0.5;
+        const rInner = pd * 0.24;
+
+        const halo = g.createRadialGradient(cx, cy, rInner, cx, cy, rOuter);
+        halo.addColorStop(0, 'rgba(0,0,0,0.97)');
+        halo.addColorStop(0.56, 'rgba(4,6,14,0.86)');
+        halo.addColorStop(0.78, 'rgba(35,65,130,0.22)');
+        halo.addColorStop(1, 'rgba(35,85,170,0)');
+        g.fillStyle = halo;
+        g.beginPath();
+        g.arc(cx, cy, rOuter, 0, Math.PI * 2);
+        g.fill();
+
+        if (!STATE.lowPowerMode) {
+            const edge = g.createRadialGradient(cx, cy, rOuter * 0.88, cx, cy, rOuter * 1.1);
+            edge.addColorStop(0, 'rgba(170,220,255,0.08)');
+            edge.addColorStop(1, 'rgba(170,220,255,0)');
+            g.fillStyle = edge;
+            g.beginPath();
+            g.arc(cx, cy, rOuter * 1.1, 0, Math.PI * 2);
+            g.fill();
+        }
+
+        const sprite = { canvas: off, size: drawSize };
+        photoHaloCache.set(key, sprite);
+        return sprite;
+    }
+
+    function getPhotoRingSprite(radius, countHint) {
+        const rr = quantize(radius, CONFIG.force60Mode ? 20 : 12);
+        const densityRaw = Math.max(320, countHint);
+        const density = quantize(
+            CONFIG.force60Mode ? Math.min(densityRaw, 460) : densityRaw,
+            CONFIG.force60Mode ? 80 : 40
+        );
+        const dprQ = STATE.lowPowerMode ? 1 : (Math.round(Math.min(1.35, STATE.dpr) * 10) / 10);
+        const key = `${rr}_${density}_${STATE.lowPowerMode ? 1 : 0}_${dprQ}`;
+        const cached = photoRingCache.get(key);
+        if (cached) return cached;
+
+        const spriteDpr = STATE.lowPowerMode ? 1 : Math.min(1.35, STATE.dpr);
+        const outerR = rr * 1.1;
+        const drawSize = Math.ceil((outerR + rr * 0.42) * 2);
+        const off = document.createElement('canvas');
+        off.width = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        off.height = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        const g = off.getContext('2d');
+        if (!g) return null;
+
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.setTransform(spriteDpr, 0, 0, spriteDpr, 0, 0);
+
+        const cx = drawSize * 0.5;
+        const cy = drawSize * 0.5;
+        g.translate(cx, cy);
+        g.globalCompositeOperation = 'lighter';
+
+        const streakTotal = STATE.lowPowerMode
+            ? Math.max(260, Math.round(density * (CONFIG.force60Mode ? 0.74 : 0.88)))
+            : Math.round(density * (CONFIG.force60Mode ? 0.86 : 1.05));
+        const ringColors = [
+            'rgba(110,228,255,0.95)',
+            'rgba(125,182,255,0.92)',
+            'rgba(157,145,255,0.92)',
+            'rgba(210,150,255,0.92)',
+            'rgba(255,190,245,0.88)'
+        ];
+        for (let i = 0; i < streakTotal; i++) {
+            const a = (i / streakTotal) * Math.PI * 2 + rand(-0.016, 0.016);
+            const inner = rr * rand(0.10, 0.22);
+            const len = rr * rand(0.82, 1.08);
+            const lw = rand(1.0, 2.6) * (STATE.lowPowerMode ? 0.95 : 1.15);
+            g.globalAlpha = rand(0.36, 0.9);
+            g.strokeStyle = pick(ringColors);
+            g.lineWidth = lw;
+            g.beginPath();
+            g.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+            g.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+            g.stroke();
+        }
+
+        const headCount = STATE.lowPowerMode
+            ? Math.max(130, Math.floor(streakTotal * (CONFIG.force60Mode ? 0.42 : 0.54)))
+            : Math.max(170, Math.floor(streakTotal * (CONFIG.force60Mode ? 0.50 : 0.72)));
+        const headColors = [
+            'rgba(200,245,255,0.95)',
+            'rgba(220,210,255,0.95)',
+            'rgba(255,220,255,0.92)',
+            'rgba(255,245,255,0.95)'
+        ];
+        for (let i = 0; i < headCount; i++) {
+            const a = rand(0, Math.PI * 2);
+            const r = rr * rand(0.88, 1.1);
+            const dot = STATE.lowPowerMode ? rand(1.05, 1.9) : rand(1.2, 2.7);
+            g.globalAlpha = rand(0.45, 0.98);
+            g.fillStyle = pick(headColors);
+            g.beginPath();
+            g.arc(Math.cos(a) * r, Math.sin(a) * r, dot, 0, Math.PI * 2);
+            g.fill();
+        }
+
+        const glow = g.createRadialGradient(0, 0, rr * 0.58, 0, 0, rr * 1.28);
+        glow.addColorStop(0, 'rgba(120,150,255,0)');
+        glow.addColorStop(0.74, STATE.lowPowerMode ? 'rgba(132,165,255,0.10)' : 'rgba(132,165,255,0.16)');
+        glow.addColorStop(1, 'rgba(132,165,255,0)');
+        g.fillStyle = glow;
+        g.beginPath();
+        g.arc(0, 0, rr * 1.28, 0, Math.PI * 2);
+        g.fill();
+
+        // Core flash is pre-composited into burst sprite to avoid per-frame gradient cost.
+        const core = g.createRadialGradient(0, 0, 0, 0, 0, rr * 0.34);
+        core.addColorStop(0, 'rgba(255,255,255,0.98)');
+        core.addColorStop(0.24, 'rgba(240,248,255,0.86)');
+        core.addColorStop(1, 'rgba(240,248,255,0)');
+        g.fillStyle = core;
+        g.beginPath();
+        g.arc(0, 0, rr * 0.34, 0, Math.PI * 2);
+        g.fill();
+
+        const sprite = { canvas: off, size: drawSize };
+        photoRingCache.set(key, sprite);
+        return sprite;
+    }
+
+    function getFinaleShellSprite(radius) {
+        const rr = quantize(radius, CONFIG.force60Mode ? 20 : 14);
+        const dprQ = STATE.lowPowerMode ? 1 : (Math.round(Math.min(1.25, STATE.dpr) * 10) / 10);
+        const key = `${rr}_${STATE.lowPowerMode ? 1 : 0}_${dprQ}`;
+        const cached = finaleShellCache.get(key);
+        if (cached) return cached;
+
+        const spriteDpr = STATE.lowPowerMode ? 1 : Math.min(1.25, STATE.dpr);
+        const drawSize = Math.ceil(rr * 2.5);
+        const off = document.createElement('canvas');
+        off.width = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        off.height = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        const g = off.getContext('2d');
+        if (!g) return null;
+
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.setTransform(spriteDpr, 0, 0, spriteDpr, 0, 0);
+        const cx = drawSize * 0.5;
+        const cy = drawSize * 0.5;
+        g.translate(cx, cy);
+        g.globalCompositeOperation = 'lighter';
+
+        const spokeCount = STATE.lowPowerMode
+            ? (CONFIG.force60Mode ? 54 : 84)
+            : (CONFIG.force60Mode ? 72 : 120);
+        const spokeColors = [
+            'rgba(255,236,176,0.96)',
+            'rgba(255,212,142,0.94)',
+            'rgba(255,186,108,0.92)',
+            'rgba(255,162,96,0.90)'
+        ];
+        for (let i = 0; i < spokeCount; i++) {
+            const a = (i / spokeCount) * Math.PI * 2 + rand(-0.011, 0.011);
+            const inner = rr * rand(0.03, 0.12);
+            const len = rr * rand(0.78, 1.08);
+            g.globalAlpha = rand(0.48, 0.96);
+            g.strokeStyle = pick(spokeColors);
+            g.lineWidth = rand(1.2, 2.8) * (STATE.lowPowerMode ? 0.86 : 1);
+            g.beginPath();
+            g.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+            g.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+            g.stroke();
+        }
+
+        const tipCount = STATE.lowPowerMode
+            ? Math.max(58, Math.floor(spokeCount * 0.5))
+            : Math.max(84, Math.floor(spokeCount * 0.66));
+        for (let i = 0; i < tipCount; i++) {
+            const a = rand(0, Math.PI * 2);
+            const r = rr * rand(0.82, 1.1);
+            const dot = STATE.lowPowerMode ? rand(0.9, 1.6) : rand(1.1, 2.0);
+            g.globalAlpha = rand(0.42, 0.95);
+            g.fillStyle = 'rgba(255,240,198,0.94)';
+            g.beginPath();
+            g.arc(Math.cos(a) * r, Math.sin(a) * r, dot, 0, Math.PI * 2);
+            g.fill();
+        }
+
+        const glow = g.createRadialGradient(0, 0, rr * 0.35, 0, 0, rr * 1.22);
+        glow.addColorStop(0, 'rgba(255,185,112,0.12)');
+        glow.addColorStop(0.72, STATE.lowPowerMode ? 'rgba(255,135,80,0.09)' : 'rgba(255,135,80,0.14)');
+        glow.addColorStop(1, 'rgba(255,135,80,0)');
+        g.fillStyle = glow;
+        g.beginPath();
+        g.arc(0, 0, rr * 1.22, 0, Math.PI * 2);
+        g.fill();
+
+        const core = g.createRadialGradient(0, 0, 0, 0, 0, rr * 0.26);
+        core.addColorStop(0, 'rgba(255,246,222,0.98)');
+        core.addColorStop(0.34, 'rgba(255,220,166,0.68)');
+        core.addColorStop(1, 'rgba(255,190,140,0)');
+        g.fillStyle = core;
+        g.beginPath();
+        g.arc(0, 0, rr * 0.26, 0, Math.PI * 2);
+        g.fill();
+
+        const sprite = { canvas: off, size: drawSize };
+        finaleShellCache.set(key, sprite);
+        return sprite;
+    }
+
+    function getFlashSprite(type, radius, liteMode) {
+        const base = Math.max(14, quantize(radius * CONFIG.centerFlashRadiusRatio, 4));
+        const f = liteMode ? 0.54 : (type === 'finale' ? 0.78 : 1);
+        const rr = quantize(base * f, 2);
+        const dprQ = STATE.lowPowerMode ? 1 : (Math.round(Math.min(1.25, STATE.dpr) * 10) / 10);
+        const key = `${type}_${liteMode ? 1 : 0}_${rr}_${STATE.lowPowerMode ? 1 : 0}_${dprQ}`;
+        const cached = flashSpriteCache.get(key);
+        if (cached) return cached;
+
+        const spriteDpr = STATE.lowPowerMode ? 1 : Math.min(1.25, STATE.dpr);
+        const drawSize = Math.ceil(rr * 2 + 6);
+        const off = document.createElement('canvas');
+        off.width = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        off.height = Math.max(2, Math.ceil(drawSize * spriteDpr));
+        const g = off.getContext('2d');
+        if (!g) return null;
+
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.setTransform(spriteDpr, 0, 0, spriteDpr, 0, 0);
+
+        const cx = drawSize * 0.5;
+        const cy = drawSize * 0.5;
+        const grad = g.createRadialGradient(cx, cy, 0, cx, cy, rr);
+        if (type === 'finale') {
+            grad.addColorStop(0, 'rgba(255,252,240,0.96)');
+            grad.addColorStop(0.34, 'rgba(255,228,168,0.58)');
+            grad.addColorStop(1, 'rgba(255,210,145,0)');
+        } else {
+            grad.addColorStop(0, 'rgba(255,255,255,0.98)');
+            grad.addColorStop(0.32, 'rgba(210,235,255,0.6)');
+            grad.addColorStop(1, 'rgba(210,235,255,0)');
+        }
+        g.fillStyle = grad;
+        g.beginPath();
+        g.arc(cx, cy, rr, 0, Math.PI * 2);
+        g.fill();
+
+        const sprite = { canvas: off, size: drawSize };
+        flashSpriteCache.set(key, sprite);
+        return sprite;
+    }
+
+    function drawParticlesBatched(g) {
+        if (activeParticles.length === 0) return;
+
+        const usedLine = [];
+        const usedFill = [];
+        const sparkleChance = currentSparkleChance();
+        const allowSparkle = sparkleChance > 0 && !(STATE.lowPowerMode && STATE.fps < 56);
+
+        for (let i = 0; i < activeParticles.length; i++) {
+            const p = activeParticles[i];
+            const a = p.life > 0 ? (p.life / p.maxLife) : 0;
+            if (a <= 0) continue;
+
+            const alpha = clamp(Math.round(a * 6) / 6, 0.12, 1);
+            if (p.kind === 'trail' || p.kind === 'dust') {
+                const size = Math.max(0.8, Math.round(p.width * 4) / 4);
+                const key = `${p.color}|${alpha.toFixed(2)}|${size.toFixed(2)}`;
+                let group = fillBatchMap.get(key);
+                if (!group) {
+                    group = { color: p.color, alpha, size, data: [], active: false };
+                    fillBatchMap.set(key, group);
+                }
+                if (!group.active) {
+                    group.active = true;
+                    group.data.length = 0;
+                    usedFill.push(group);
+                }
+                group.data.push(p.x, p.y);
+                continue;
+            }
+
+            const width = Math.max(0.8, Math.round(p.width * 5) / 5);
+            const key = `${p.color}|${alpha.toFixed(2)}|${width.toFixed(2)}`;
+            let group = lineBatchMap.get(key);
+            if (!group) {
+                group = { color: p.color, alpha, width, data: [], active: false };
+                lineBatchMap.set(key, group);
+            }
+            if (!group.active) {
+                group.active = true;
+                group.data.length = 0;
+                usedLine.push(group);
+            }
+            group.data.push(p.px, p.py, p.x, p.y);
+
+            if (allowSparkle && p.sparkle && a < 0.62 && Math.random() < sparkleChance) {
+                const s = p.kind === 'main' ? (STATE.lowPowerMode ? 1.4 : 2.1) : 1.2;
+                const sa = clamp(alpha * 1.2, 0.16, 1);
+                const skey = `${p.sparkColor}|${sa.toFixed(2)}|${s.toFixed(2)}`;
+                let sgroup = fillBatchMap.get(skey);
+                if (!sgroup) {
+                    sgroup = { color: p.sparkColor, alpha: sa, size: s, data: [], active: false };
+                    fillBatchMap.set(skey, sgroup);
+                }
+                if (!sgroup.active) {
+                    sgroup.active = true;
+                    sgroup.data.length = 0;
+                    usedFill.push(sgroup);
+                }
+                sgroup.data.push(p.x, p.y);
+            }
+        }
+
+        for (let i = 0; i < usedLine.length; i++) {
+            const group = usedLine[i];
+            g.globalAlpha = group.alpha;
+            if (drawState.stroke !== group.color) {
+                g.strokeStyle = group.color;
+                drawState.stroke = group.color;
+            }
+            g.lineWidth = group.width;
+            g.beginPath();
+            const arr = group.data;
+            for (let j = 0; j < arr.length; j += 4) {
+                g.moveTo(arr[j], arr[j + 1]);
+                g.lineTo(arr[j + 2], arr[j + 3]);
+            }
+            g.stroke();
+            group.active = false;
+        }
+
+        for (let i = 0; i < usedFill.length; i++) {
+            const group = usedFill[i];
+            g.globalAlpha = group.alpha;
+            if (drawState.fill !== group.color) {
+                g.fillStyle = group.color;
+                drawState.fill = group.color;
+            }
+            const arr = group.data;
+            const s = group.size;
+            for (let j = 0; j < arr.length; j += 2) {
+                g.fillRect(arr[j] - s * 0.5, arr[j + 1] - s * 0.5, s, s);
+            }
+            group.active = false;
+        }
     }
 
     class Particle {
@@ -630,9 +1302,11 @@
 
     function getParticle() {
         if (activeParticles.length >= currentParticleLimit()) return null;
+        if (CONFIG.force60Mode && spawnBudget <= 0) return null;
         let p = particlePool.pop();
         if (!p) p = new Particle();
         activeParticles.push(p);
+        if (CONFIG.force60Mode) spawnBudget -= 1;
         return p;
     }
 
@@ -717,6 +1391,317 @@
         }
     }
 
+    class PhotoFirework {
+        constructor(opt) {
+            this.imageIndex = opt.imageIndex;
+            this.isLast = !!opt.isLast;
+
+            this.stage = photoStage.rocketUp;
+            this.stageElapsed = 0;
+            this.burstElapsed = 0;
+            this.dead = false;
+
+            this.tx = opt.tx;
+            this.ty = opt.ty;
+            this.x = opt.startX;
+            this.y = STATE.height + rand(8, 18);
+            this.jitterT = rand(0, 1000);
+            this.jitterAmp = rand(0.55, 1.2);
+
+            const distance = Math.hypot(this.tx - this.x, this.ty - this.y);
+            const speed = rand(760, 980);
+            const flightSecByDistance = distance / Math.max(1, speed);
+            const flightSec = clamp(
+                flightSecByDistance,
+                CONFIG.photoRocketFlightSec[0],
+                CONFIG.photoRocketFlightSec[1]
+            );
+            this.rocketLifeMs = flightSec * 1000;
+            this.gravity = rand(280, 420);
+            this.vx = (this.tx - this.x) / flightSec;
+            this.vy = (this.ty - this.y - 0.5 * this.gravity * flightSec * flightSec) / flightSec;
+
+            this.radius = chooseBurstRadius('photo');
+            this.streakCount = countForBurst('photo');
+            this.photoDiameter = this.radius * rand(CONFIG.photoDiameterRatio[0], CONFIG.photoDiameterRatio[1]);
+            this.haloDiameter = this.radius * rand(CONFIG.haloDiameterRatio[0], CONFIG.haloDiameterRatio[1]);
+            this.palette = paletteFor('photo');
+
+            this.burstSprite = getPhotoRingSprite(this.radius, this.streakCount);
+            this.flashSprite = getFlashSprite('photo', this.radius, false);
+            this.haloSprite = getPhotoHaloSprite(this.photoDiameter, this.haloDiameter);
+
+            this.rotation = rand(0, Math.PI * 2);
+            this.spin = rand(-0.24, 0.24) * (STATE.lowPowerMode ? 0.6 : 1);
+            this.burstExpandMs = rand(CONFIG.photoBurstExpandMs[0], CONFIG.photoBurstExpandMs[1]);
+            this.burstFadeMs = rand(CONFIG.photoBurstFadeMs[0], CONFIG.photoBurstFadeMs[1]);
+
+            this.revealShadowMs = rand(CONFIG.photoRevealShadowMs[0], CONFIG.photoRevealShadowMs[1]);
+            this.revealGrowMs = rand(
+                Math.max(this.revealShadowMs + 120, CONFIG.photoRevealGrowMs[0]),
+                CONFIG.photoRevealGrowMs[1]
+            );
+            this.revealHoldMs = rand(
+                Math.max(this.revealGrowMs + 180, CONFIG.photoRevealHoldMs[0]),
+                CONFIG.photoRevealHoldMs[1]
+            );
+            this.revealOutMs = this.revealHoldMs + rand(CONFIG.photoRevealFadeMs[0], CONFIG.photoRevealFadeMs[1]);
+        }
+
+        spawnRocketTrail() {
+            let trailCount = CONFIG.rocketTrailPerFrame;
+            if (STATE.lowPowerMode || STATE.fps < 48) trailCount = 1;
+            else if (STATE.fps < 56) trailCount = 2;
+            else trailCount = 3;
+
+            const budget = Math.max(0, currentParticleLimit() - activeParticles.length);
+            trailCount = Math.min(trailCount, budget);
+
+            for (let i = 0; i < trailCount; i++) {
+                const p = getParticle();
+                if (!p) break;
+                p.reset({
+                    x: this.x + rand(-1.8, 1.8),
+                    y: this.y + rand(-1.8, 1.8),
+                    vx: rand(-26, 26),
+                    vy: rand(52, 145),
+                    gravity: rand(130, 240),
+                    drag: 0.987,
+                    life: rand(190, 360),
+                    color: '#ffe8bf',
+                    width: rand(1.0, 1.9),
+                    kind: 'trail'
+                });
+            }
+
+            if (!STATE.lowPowerMode && Math.random() < 0.32) {
+                const sp = getParticle();
+                if (sp) {
+                    sp.reset({
+                        x: this.x + rand(-1.2, 1.2),
+                        y: this.y + rand(-1.2, 1.2),
+                        vx: rand(-38, 38),
+                        vy: rand(30, 116),
+                        gravity: rand(140, 220),
+                        drag: 0.985,
+                        life: rand(110, 180),
+                        color: '#fffdf0',
+                        width: rand(1.0, 1.5),
+                        kind: 'trail'
+                    });
+                }
+            }
+        }
+
+        spawnFallingParticles() {
+            const budget = Math.max(0, currentParticleLimit() - activeParticles.length);
+            if (budget <= 0) return;
+
+            let wanted = Math.round(this.streakCount * (STATE.lowPowerMode ? 0.18 : 0.28));
+            if (isMobile || isWeChat) wanted = Math.round(wanted * 0.86);
+            if (STATE.fps < 50) wanted = Math.round(wanted * 0.82);
+            const count = Math.min(budget, Math.max(120, wanted));
+
+            const mainEmit = (p) => {
+                const a = rand(0, Math.PI * 2);
+                const speed = this.radius * rand(0.013, 0.024) * 60;
+                p.reset({
+                    x: this.tx,
+                    y: this.ty,
+                    vx: Math.cos(a) * speed,
+                    vy: Math.sin(a) * speed,
+                    gravity: rand(180, 300),
+                    drag: rand(0.982, 0.991),
+                    life: rand(980, 1780),
+                    color: pick(this.palette),
+                    width: rand(1.0, 2.4),
+                    kind: 'main',
+                    sparkle: !STATE.lowPowerMode,
+                    sparkColor: '#fef8ee'
+                });
+            };
+            if (CONFIG.force60Mode) {
+                enqueueSpawnTask(count, Math.max(18, Math.floor(count * 0.34)), mainEmit);
+            } else {
+                for (let i = 0; i < count; i++) {
+                    const p = getParticle();
+                    if (!p) break;
+                    mainEmit(p);
+                }
+            }
+
+            if (STATE.lowPowerMode) return;
+            const tipCount = Math.max(40, Math.min(140, Math.floor(count * 0.32)));
+            const tipEmit = (p) => {
+                const a = rand(0, Math.PI * 2);
+                const speed = this.radius * rand(0.015, 0.026) * 60;
+                p.reset({
+                    x: this.tx,
+                    y: this.ty,
+                    vx: Math.cos(a) * speed,
+                    vy: Math.sin(a) * speed,
+                    gravity: rand(220, 320),
+                    drag: rand(0.981, 0.988),
+                    life: rand(720, 1220),
+                    color: '#fff9f0',
+                    width: rand(0.9, 1.5),
+                    kind: 'trail'
+                });
+            };
+            if (CONFIG.force60Mode) {
+                enqueueSpawnTask(tipCount, Math.max(10, Math.floor(tipCount * 0.5)), tipEmit);
+            } else {
+                for (let i = 0; i < tipCount; i++) {
+                    const p = getParticle();
+                    if (!p) break;
+                    tipEmit(p);
+                }
+            }
+        }
+
+        enterBurst() {
+            this.stage = photoStage.burstExpand;
+            this.stageElapsed = 0;
+            this.burstElapsed = 0;
+            this.x = this.tx;
+            this.y = this.ty;
+            this.spawnFallingParticles();
+            if (this.isLast && STATE.finalePendingAt === 0) {
+                STATE.finalePendingAt = nowMs() + rand(CONFIG.finaleDelayAfterLastBurst[0], CONFIG.finaleDelayAfterLastBurst[1]);
+            }
+        }
+
+        update(dt) {
+            const dts = dt / 1000;
+            if (this.stage === photoStage.rocketUp) {
+                this.stageElapsed += dt;
+                this.jitterT += dts;
+                const side = Math.sin(this.jitterT * 13) * this.jitterAmp;
+                this.x += (this.vx + side) * dts;
+                this.y += this.vy * dts;
+                this.vy += this.gravity * dts;
+                this.spawnRocketTrail();
+
+                if (this.stageElapsed >= this.rocketLifeMs || this.y <= this.ty) {
+                    this.enterBurst();
+                }
+                return;
+            }
+
+            this.stageElapsed += dt;
+            this.burstElapsed += dt;
+
+            if (this.stage === photoStage.burstExpand && this.stageElapsed >= this.burstExpandMs) {
+                this.stage = photoStage.fallReveal;
+                this.stageElapsed = 0;
+            }
+
+            if (this.burstElapsed > this.revealOutMs + 800) {
+                this.dead = true;
+            }
+        }
+
+        drawRocket(g) {
+            if (this.stage !== photoStage.rocketUp) return;
+            g.save();
+            g.globalCompositeOperation = 'lighter';
+            g.globalAlpha = 0.96;
+            g.fillStyle = '#fff9ef';
+            g.fillRect(this.x - 1.8, this.y - 1.8, 3.6, 3.6);
+            g.restore();
+        }
+
+        drawBurst(g, liteMode) {
+            if (this.stage === photoStage.rocketUp || !this.burstSprite) return;
+
+            let scale;
+            if (this.stage === photoStage.burstExpand) {
+                const p = clamp(this.stageElapsed / this.burstExpandMs, 0, 1);
+                scale = 0.22 + (1 - Math.pow(1 - p, 2.4)) * 0.96;
+            } else {
+                const p = clamp((this.burstElapsed - this.burstExpandMs) / 900, 0, 1);
+                scale = 1.02 + p * 0.18;
+            }
+
+            const fade = this.stage === photoStage.burstExpand
+                ? 1
+                : clamp(1 - ((this.burstElapsed - this.burstExpandMs) / this.burstFadeMs), 0, 1);
+            const alpha = fade * (STATE.lowPowerMode ? 0.92 : 1);
+            if (alpha <= 0.01) return;
+
+            const rot = this.rotation + this.spin * (this.burstElapsed * 0.001);
+            const size = this.burstSprite.size * scale;
+            g.save();
+            g.translate(this.tx, this.ty);
+            g.rotate(rot);
+            g.globalAlpha = alpha;
+            g.drawImage(this.burstSprite.canvas, -size * 0.5, -size * 0.5, size, size);
+            if (!liteMode && !STATE.lowPowerMode) {
+                const bloom = size * 1.08;
+                g.globalAlpha = alpha * 0.32;
+                g.drawImage(this.burstSprite.canvas, -bloom * 0.5, -bloom * 0.5, bloom, bloom);
+            }
+            g.restore();
+        }
+
+        drawCenterFlash(g, liteMode) {
+            if (this.stage === photoStage.rocketUp) return;
+            if (this.burstElapsed > 120 || !this.flashSprite) return;
+            const p = this.burstElapsed / 120;
+            const alpha = (1 - p) * (liteMode ? 0.75 : 1);
+            if (alpha <= 0.01) return;
+            const scale = 0.92 + p * 0.56;
+            const size = this.flashSprite.size * scale;
+            g.globalAlpha = alpha;
+            g.drawImage(this.flashSprite.canvas, this.tx - size * 0.5, this.ty - size * 0.5, size, size);
+        }
+
+        drawPhoto(g) {
+            if (this.stage !== photoStage.fallReveal) return;
+            const img = photoCache[this.imageIndex];
+            if (!img) return;
+
+            const t = this.burstElapsed;
+            if (t < this.revealShadowMs) return;
+
+            let alpha = 0;
+            let scale = 0.92;
+            if (t < this.revealGrowMs) {
+                const p = (t - this.revealShadowMs) / Math.max(1, this.revealGrowMs - this.revealShadowMs);
+                alpha = 0.04 + (1 - Math.pow(1 - p, 2.2)) * 0.96;
+                scale = 0.92 + p * 0.16;
+            } else if (t < this.revealHoldMs) {
+                alpha = 1;
+                scale = 1.08 + Math.sin((t - this.revealGrowMs) * 0.009) * 0.012;
+            } else if (t < this.revealOutMs) {
+                const p = (t - this.revealHoldMs) / Math.max(1, this.revealOutMs - this.revealHoldMs);
+                alpha = 1 - p;
+                scale = 1.08 + p * 0.06;
+            } else {
+                return;
+            }
+
+            if (this.haloSprite) {
+                const haloScale = scale * (1.03 + Math.sin(t * 0.006) * 0.02);
+                const haloSize = this.haloSprite.size * haloScale;
+                g.globalCompositeOperation = 'source-over';
+                g.globalAlpha = alpha * (STATE.lowPowerMode ? 0.88 : 0.98);
+                g.drawImage(
+                    this.haloSprite.canvas,
+                    this.tx - haloSize * 0.5,
+                    this.ty - haloSize * 0.5,
+                    haloSize,
+                    haloSize
+                );
+            }
+
+            const size = this.photoDiameter * scale;
+            g.globalCompositeOperation = 'source-over';
+            g.globalAlpha = alpha;
+            g.drawImage(img, this.tx - size * 0.5, this.ty - size * 0.5, size, size);
+        }
+    }
+
     class Burst {
         constructor(opt) {
             this.type = opt.type;
@@ -728,11 +1713,37 @@
             this.dead = false;
 
             this.radius = opt.radius;
+            this.streakCount = opt.count || 0;
             this.photoDiameter = this.radius * rand(CONFIG.photoDiameterRatio[0], CONFIG.photoDiameterRatio[1]);
             this.haloDiameter = this.radius * rand(CONFIG.haloDiameterRatio[0], CONFIG.haloDiameterRatio[1]);
 
             this.blurStrong = rand(CONFIG.shadowBlurStrong[0], CONFIG.shadowBlurStrong[1]);
             this.blurWeak = rand(CONFIG.shadowBlurWeak[0], CONFIG.shadowBlurWeak[1]);
+
+            this.photoRingSprite = null;
+            this.finaleShellSprite = null;
+            this.ringLifeMs = 0;
+            this.ringScaleStart = 1;
+            this.ringScaleEnd = 1;
+            this.ringAlpha = 1;
+            this.ringRotation = rand(0, Math.PI * 2);
+            this.ringSpin = 0;
+
+            if (this.type === 'photo') {
+                this.photoRingSprite = getPhotoRingSprite(this.radius, this.streakCount);
+                this.ringLifeMs = rand(1200, 1720);
+                this.ringScaleStart = rand(0.72, 0.82);
+                this.ringScaleEnd = rand(1.02, 1.12);
+                this.ringAlpha = rand(0.92, 1.08);
+                this.ringSpin = rand(-0.20, 0.20) * (STATE.lowPowerMode ? 0.55 : 1);
+            } else if (this.type === 'finale') {
+                this.finaleShellSprite = getFinaleShellSprite(this.radius);
+                this.ringLifeMs = rand(880, 1320);
+                this.ringScaleStart = rand(0.48, 0.58);
+                this.ringScaleEnd = rand(1.06, 1.18);
+                this.ringAlpha = rand(0.9, 1.06);
+                this.ringSpin = rand(-0.09, 0.09) * (STATE.lowPowerMode ? 0.5 : 1);
+            }
 
             this.spawnParticles(opt);
         }
@@ -741,20 +1752,58 @@
             const colors = opt.palette;
             const count = opt.count;
 
+            if (this.type === 'photo') {
+                const budget = Math.max(0, currentParticleLimit() - activeParticles.length);
+                if (budget <= 0) return;
+                const wanted = Math.max(46, Math.round((count || 420) * (STATE.lowPowerMode ? 0.11 : 0.16)));
+                const sparkCount = Math.min(wanted, budget);
+
+                const photoEmit = (p) => {
+                    const a = rand(0, Math.PI * 2);
+                    const speed = this.radius * rand(0.013, 0.024) * 60;
+                    p.reset({
+                        x: this.x,
+                        y: this.y,
+                        vx: Math.cos(a) * speed,
+                        vy: Math.sin(a) * speed,
+                        gravity: rand(30, 82),
+                        drag: rand(0.982, 0.990),
+                        life: rand(760, 1280),
+                        color: pick(colors),
+                        width: rand(1.0, 2.3),
+                        kind: 'main',
+                        sparkle: !STATE.lowPowerMode,
+                        sparkColor: '#eef8ff'
+                    });
+                };
+                if (CONFIG.force60Mode) {
+                    enqueueSpawnTask(sparkCount, Math.max(14, Math.floor(sparkCount * 0.32)), photoEmit);
+                } else {
+                    for (let i = 0; i < sparkCount; i++) {
+                        const p = getParticle();
+                        if (!p) break;
+                        photoEmit(p);
+                    }
+                }
+                return;
+            }
+
             const coreWanted = this.type === 'mini' ? 6 : (this.type === 'finale' ? 26 : 32);
             const budget = Math.max(0, currentParticleLimit() - activeParticles.length);
             if (budget <= 0) return;
 
             const totalWanted = count + coreWanted;
             const ratio = Math.min(1, budget / totalWanted);
-            const mainCount = Math.min(count, Math.floor(count * ratio));
+            let mainCount = Math.min(count, Math.floor(count * ratio));
             const coreBudgetLeft = Math.max(0, budget - mainCount);
-            const coreCount = Math.min(coreWanted, coreBudgetLeft);
+            let coreCount = Math.min(coreWanted, coreBudgetLeft);
 
-            for (let i = 0; i < mainCount; i++) {
-                const p = getParticle();
-                if (!p) break;
+            if (this.type === 'finale' && CONFIG.force60Mode) {
+                mainCount = Math.min(mainCount, STATE.fps < 45 ? 24 : 32);
+                coreCount = Math.min(coreCount, 8);
+            }
 
+            const mainEmit = (p) => {
                 const a = rand(0, Math.PI * 2);
                 const speedPf = this.radius * rand(CONFIG.streakSpeedFactor[0], CONFIG.streakSpeedFactor[1]);
                 const speed = speedPf * 60;
@@ -772,11 +1821,8 @@
                     sparkle: true,
                     sparkColor: '#fff8e5'
                 });
-            }
-
-            for (let i = 0; i < coreCount; i++) {
-                const p = getParticle();
-                if (!p) break;
+            };
+            const coreEmit = (p) => {
                 const a = rand(0, Math.PI * 2);
                 const v = this.radius * rand(0.004, 0.008) * 60;
                 p.reset({
@@ -791,16 +1837,44 @@
                     width: rand(0.9, 1.6),
                     kind: 'trail'
                 });
+            };
+
+            if (CONFIG.force60Mode) {
+                enqueueSpawnTask(mainCount, Math.max(16, Math.floor(mainCount * 0.30)), mainEmit);
+                enqueueSpawnTask(coreCount, Math.max(8, Math.floor(coreCount * 0.55)), coreEmit);
+            } else {
+                for (let i = 0; i < mainCount; i++) {
+                    const p = getParticle();
+                    if (!p) break;
+                    mainEmit(p);
+                }
+                for (let i = 0; i < coreCount; i++) {
+                    const p = getParticle();
+                    if (!p) break;
+                    coreEmit(p);
+                }
             }
         }
 
         update(dt) {
             this.ageMs += dt;
             this.frameAge += dt / (1000 / 60);
-            if (this.ageMs > 1700) this.dead = true;
+            const ttl = this.type === 'photo'
+                ? Math.max(1800, this.ringLifeMs + 380)
+                : 1700;
+            if (this.ageMs > ttl) this.dead = true;
         }
 
         blur() {
+            if (this.type === 'photo') {
+                if (STATE.lowPowerMode || STATE.fps < 50) return 0;
+                if (isMobile || isWeChat) {
+                    if (this.frameAge <= 5) return 1;
+                    return 0;
+                }
+                if (this.frameAge <= 7) return 2;
+                return 0;
+            }
             if (isMobile || isWeChat) {
                 if (STATE.lowPowerMode || STATE.fps < 50) return 0;
                 if (this.frameAge <= 4) return 2;
@@ -813,87 +1887,75 @@
             return 0;
         }
 
-        drawCenterFlash(g, liteMode) {
-            if (this.frameAge > CONFIG.shadowTotalFrames) return;
-            const fr = this.radius * CONFIG.centerFlashRadiusRatio;
-            if (liteMode) {
-                g.fillStyle = this.type === 'finale' ? 'rgba(255,224,165,0.20)' : 'rgba(255,240,210,0.26)';
-                g.beginPath();
-                g.arc(this.x, this.y, fr * 0.42, 0, Math.PI * 2);
-                g.fill();
-                return;
-            }
-            if (this.type === 'finale') {
-                g.fillStyle = 'rgba(255,232,185,0.28)';
-                g.beginPath();
-                g.arc(this.x, this.y, fr * 0.55, 0, Math.PI * 2);
-                g.fill();
-                return;
-            }
-            const grad = g.createRadialGradient(this.x, this.y, 0, this.x, this.y, fr);
-            grad.addColorStop(0, 'rgba(255,255,255,0.95)');
-            grad.addColorStop(0.35, 'rgba(255,235,200,0.5)');
-            grad.addColorStop(1, 'rgba(255,255,255,0)');
-            g.fillStyle = grad;
-            g.beginPath();
-            g.arc(this.x, this.y, fr, 0, Math.PI * 2);
-            g.fill();
-        }
-    }
+        drawPhotoRing(g, liteMode) {
+            if (this.type !== 'photo' || !this.photoRingSprite) return;
 
-    class PhotoOverlay {
-        constructor(opt) {
-            this.imageIndex = opt.imageIndex;
-            this.x = opt.x;
-            this.y = opt.y;
-            this.photoDiameter = opt.photoDiameter;
-            this.haloDiameter = opt.haloDiameter;
-            this.delay = rand(CONFIG.photoDelayMs[0], CONFIG.photoDelayMs[1]);
-            this.t = 0;
-            this.dead = false;
-        }
+            const p = clamp(this.ageMs / Math.max(1, this.ringLifeMs), 0, 1);
+            const ease = 1 - Math.pow(1 - p, 2.2);
+            const scale = this.ringScaleStart + (this.ringScaleEnd - this.ringScaleStart) * ease;
+            const fadeIn = Math.min(1, p / 0.16);
+            const fadeOut = p < 0.56 ? 1 : (1 - (p - 0.56) / 0.44);
+            const alpha = clamp(fadeIn * fadeOut * this.ringAlpha, 0, 1);
+            if (alpha <= 0.01) return;
 
-        update(dt) {
-            this.t += dt;
-            const ttl = this.delay + CONFIG.photoFadeInMs + CONFIG.photoHoldMs + CONFIG.photoFadeOutMs;
-            if (this.t > ttl) this.dead = true;
-        }
+            const rot = this.ringRotation + this.ringSpin * (this.ageMs * 0.001);
+            const size = this.photoRingSprite.size * scale;
 
-        draw(g) {
-            if (STATE.phase !== CONFIG.phase.photoShow) return;
-            const img = photoCache[this.imageIndex];
-            if (!img || this.t < this.delay) return;
-
-            const t = this.t - this.delay;
-            let alpha = 1;
-            let scale = 1;
-
-            if (t < CONFIG.photoFadeInMs) {
-                const p = t / CONFIG.photoFadeInMs;
-                alpha = p;
-                scale = 0.88 + 0.12 * p;
-            } else if (t < CONFIG.photoFadeInMs + CONFIG.photoHoldMs) {
-                alpha = 1;
-            } else {
-                const p = Math.min(1, (t - CONFIG.photoFadeInMs - CONFIG.photoHoldMs) / CONFIG.photoFadeOutMs);
-                alpha = 1 - p;
-                scale = 1 + 0.03 * p;
-            }
-
-            const haloR = this.haloDiameter * 0.5;
-            const halo = g.createRadialGradient(this.x, this.y, this.photoDiameter * 0.25, this.x, this.y, haloR);
-            halo.addColorStop(0, 'rgba(0,0,0,0.95)');
-            halo.addColorStop(0.62, 'rgba(0,0,0,0.82)');
-            halo.addColorStop(1, 'rgba(0,0,0,0)');
-            g.fillStyle = halo;
-            g.beginPath();
-            g.arc(this.x, this.y, haloR, 0, Math.PI * 2);
-            g.fill();
-
-            const size = this.photoDiameter * scale;
-            g.globalCompositeOperation = 'source-over';
+            g.save();
+            g.translate(this.x, this.y);
+            g.rotate(rot);
             g.globalAlpha = alpha;
-            g.drawImage(img, this.x - size * 0.5, this.y - size * 0.5, size, size);
+            g.drawImage(this.photoRingSprite.canvas, -size * 0.5, -size * 0.5, size, size);
+            if (!liteMode && !STATE.lowPowerMode) {
+                const glowSize = size * 1.08;
+                g.globalAlpha = alpha * 0.34;
+                g.drawImage(this.photoRingSprite.canvas, -glowSize * 0.5, -glowSize * 0.5, glowSize, glowSize);
+            }
+            g.restore();
+        }
+
+        drawFinaleShell(g, liteMode) {
+            if (this.type !== 'finale' || !this.finaleShellSprite) return;
+
+            const p = clamp(this.ageMs / Math.max(1, this.ringLifeMs), 0, 1);
+            const ease = 1 - Math.pow(1 - p, 2.1);
+            const scale = this.ringScaleStart + (this.ringScaleEnd - this.ringScaleStart) * ease;
+            const fadeIn = Math.min(1, p / 0.13);
+            const fadeOut = p < 0.60 ? 1 : (1 - (p - 0.60) / 0.40);
+            const alpha = clamp(fadeIn * fadeOut * this.ringAlpha, 0, 1);
+            if (alpha <= 0.01) return;
+
+            const rot = this.ringRotation + this.ringSpin * (this.ageMs * 0.001);
+            const size = this.finaleShellSprite.size * scale;
+            g.save();
+            g.translate(this.x, this.y);
+            g.rotate(rot);
+            g.globalAlpha = alpha;
+            g.drawImage(this.finaleShellSprite.canvas, -size * 0.5, -size * 0.5, size, size);
+            if (!liteMode && !STATE.lowPowerMode) {
+                const bloom = size * 1.05;
+                g.globalAlpha = alpha * 0.24;
+                g.drawImage(this.finaleShellSprite.canvas, -bloom * 0.5, -bloom * 0.5, bloom, bloom);
+            }
+            g.restore();
+        }
+
+        drawCenterFlash(g, liteMode) {
+            if (this.frameAge > CONFIG.shadowTotalFrames + (this.type === 'photo' ? 4 : 0)) return;
+            const sprite = getFlashSprite(this.type, this.radius, liteMode);
+            if (!sprite) return;
+
+            let alpha = 1 - clamp(this.frameAge / (CONFIG.shadowTotalFrames + (this.type === 'photo' ? 4 : 0)), 0, 1);
+            if (this.type === 'photo') {
+                const warm = clamp(this.ageMs / 160, 0, 1);
+                alpha *= warm;
+            }
+            if (alpha <= 0.01) return;
+
+            const scale = this.type === 'photo' ? (1 + clamp(this.ageMs / 420, 0, 0.42)) : 1;
+            const size = sprite.size * scale;
+            g.globalAlpha = alpha * (liteMode ? 0.74 : 1);
+            g.drawImage(sprite.canvas, this.x - size * 0.5, this.y - size * 0.5, size, size);
         }
     }
 
@@ -912,6 +1974,9 @@
 
     function countForBurst(type) {
         if (type === 'finale') {
+            if (CONFIG.force60Mode) {
+                return randInt(CONFIG.finaleBurstCountForce60[0], CONFIG.finaleBurstCountForce60[1]);
+            }
             const range = calcScaledRange(CONFIG.finaleStreakCountHigh, CONFIG.finaleStreakCountLow);
             return randInt(range[0], range[1]);
         }
@@ -920,7 +1985,8 @@
             return randInt(range[0], range[1]);
         }
         const range = calcScaledRange(CONFIG.photoStreakCountHigh, CONFIG.photoStreakCountLow);
-        return randInt(range[0], range[1]);
+        const n = randInt(range[0], range[1]);
+        return STATE.lowPowerMode ? Math.max(Math.round(CONFIG.photoStreakCountLow[0] * 0.94), n) : n;
     }
 
     function paletteFor(type) {
@@ -955,38 +2021,14 @@
             }));
             return;
         }
-
-        const burst = new Burst({
-            type: 'photo',
-            x: rocket.x,
-            y: rocket.y,
-            imageIndex: rocket.imageIndex,
-            radius: chooseBurstRadius('photo'),
-            count: countForBurst('photo'),
-            palette: paletteFor('photo'),
-            kind: 'main'
-        });
-        bursts.push(burst);
-
-        photoOverlays.push(new PhotoOverlay({
-            imageIndex: rocket.imageIndex,
-            x: rocket.x,
-            y: rocket.y,
-            photoDiameter: burst.photoDiameter,
-            haloDiameter: burst.haloDiameter
-        }));
-
-        if (rocket.imageIndex === CONFIG.imageCount && STATE.finalePendingAt === 0) {
-            STATE.finalePendingAt = nowMs() + rand(CONFIG.finaleDelayAfterLastBurst[0], CONFIG.finaleDelayAfterLastBurst[1]);
-        }
     }
 
     function spawnMainPhotoRocket(index) {
         const tx = STATE.width * rand(CONFIG.photoTargetX[0], CONFIG.photoTargetX[1]);
         const ty = STATE.height * rand(CONFIG.photoTargetY[0], CONFIG.photoTargetY[1]);
-        rockets.push(new Rocket({
-            type: 'main',
+        photoFireworks.push(new PhotoFirework({
             imageIndex: index,
+            isLast: index === CONFIG.imageCount,
             startX: STATE.width * rand(0.40, 0.60),
             tx,
             ty
@@ -1008,9 +2050,29 @@
         let volleyMin = CONFIG.finaleVolleyCountRange[0];
         let volleyMax = CONFIG.finaleVolleyCountRange[1];
 
-        if (STATE.fps < 45 || STATE.lowPowerMode) {
+        if (CONFIG.force60Mode) {
+            volleyMin = CONFIG.finaleVolleyCountRangeForce60[0];
+            volleyMax = CONFIG.finaleVolleyCountRangeForce60[1];
+        }
+
+        if (!CONFIG.force60Mode && (STATE.fps < 52 || STATE.lowPowerMode)) {
             volleyMin = Math.max(2, volleyMin - 1);
             volleyMax = Math.max(volleyMin, volleyMax - 2);
+        }
+        if (!CONFIG.force60Mode && STATE.fps < 45) {
+            volleyMin = Math.max(1, volleyMin - 1);
+            volleyMax = Math.max(volleyMin, volleyMax - 1);
+        }
+        if (!CONFIG.force60Mode && STATE.fps < 38) {
+            volleyMin = 1;
+            volleyMax = Math.max(1, volleyMax - 2);
+        }
+
+        if (CONFIG.force60Mode) {
+            const lim = currentParticleLimit();
+            if (activeParticles.length > lim * 0.74 || spawnTasks.length > 18) {
+                return;
+            }
         }
 
         const n = randInt(volleyMin, volleyMax);
@@ -1029,12 +2091,18 @@
     function startFinale() {
         STATE.phase = CONFIG.phase.finale;
         STATE.finaleStartedAt = nowMs();
-        STATE.finaleEndsAt = STATE.finaleStartedAt + rand(CONFIG.finaleDuration[0], CONFIG.finaleDuration[1]);
+        STATE.finaleEndsAt = STATE.finaleStartedAt + CONFIG.finaleHoldMs;
         STATE.nextFinaleVolleyAt = STATE.finaleStartedAt;
         STATE.finalePendingAt = 0;
         STATE.finaleFading = false;
         STATE.finaleFadeStart = 0;
-        photoOverlays.length = 0;
+        STATE.finaleGreetingShown = false;
+        STATE.finaleGreetingStart = 0;
+        rockets.length = 0;
+        bursts.length = 0;
+        activeParticles.length = 0;
+        photoFireworks.length = 0;
+        spawnTasks.length = 0;
     }
 
     function updatePhotoShow(now) {
@@ -1045,7 +2113,7 @@
         }
 
         if (now >= STATE.nextMiniLaunchAt) {
-            // 一次最多 1 个小烟花
+            // 涓€娆℃渶澶?1 涓皬鐑熻姳
             spawnMiniRocket();
             scheduleNextMini(now);
         }
@@ -1056,28 +2124,33 @@
     }
 
     function updateFinale(now) {
+        if (STATE.finaleGreetingShown) return;
+
         if (now >= STATE.nextFinaleVolleyAt) {
-            spawnFinaleVolley();
-            let interval = rand(CONFIG.finaleVolleyInterval[0], CONFIG.finaleVolleyInterval[1]);
-            if (STATE.fps < 45 || STATE.lowPowerMode) interval += 200;
+            const particleLimit = currentParticleLimit();
+            const particleLoad = activeParticles.length / Math.max(1, particleLimit);
+            const queueLoad = spawnTasks.length;
+            if (particleLoad < 0.72 && queueLoad < 10) {
+                spawnFinaleVolley();
+            }
+            let interval = CONFIG.force60Mode
+                ? rand(CONFIG.finaleVolleyIntervalForce60[0], CONFIG.finaleVolleyIntervalForce60[1])
+                : rand(CONFIG.finaleVolleyInterval[0], CONFIG.finaleVolleyInterval[1]);
+            if (STATE.lowPowerMode) interval += 280;
+            else if (STATE.fps < 45) interval += 300;
+            if (particleLoad > 0.64) interval += 320;
+            if (queueLoad > 8) interval += 320;
             STATE.nextFinaleVolleyAt = now + interval;
         }
 
-        if (now >= STATE.nextMiniLaunchAt) {
-            spawnMiniRocket();
-            scheduleNextMini(now);
-        }
-
         if (now >= STATE.finaleEndsAt) {
-            if (CONFIG.finaleEndMode === 'loop') {
-                STATE.finaleStartedAt = now;
-                STATE.finaleEndsAt = now + rand(CONFIG.finaleDuration[0], CONFIG.finaleDuration[1]);
-            } else if (CONFIG.finaleEndMode === 'fadeout') {
-                if (!STATE.finaleFading) {
-                    STATE.finaleFading = true;
-                    STATE.finaleFadeStart = now;
-                }
-            }
+            STATE.finaleGreetingShown = true;
+            STATE.finaleGreetingStart = now;
+            STATE.nextFinaleVolleyAt = Infinity;
+            rockets.length = 0;
+            bursts.length = 0;
+            activeParticles.length = 0;
+            spawnTasks.length = 0;
         }
     }
 
@@ -1115,48 +2188,64 @@
         document.documentElement.style.setProperty('--vvh', `${Math.max(1, Math.floor(vvh))}px`);
     }
 
-    function applyViewportSize() {
+    function applyViewportSize(force = false) {
         const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
         const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
         const newWidth = Math.max(1, Math.floor(vw));
         const newHeight = Math.max(1, Math.floor(vh));
 
-        if (STATE.width > 0 && STATE.height > 0) {
-            const dw = Math.abs(newWidth - STATE.width);
-            const dh = Math.abs(newHeight - STATE.height);
-            if (dw < 2 && dh < 2) return;
-        }
-
         updateViewportVar();
-
-        const prevMinDim = STATE.minDim;
-        const prevDpr = STATE.dpr;
-
-        STATE.width = newWidth;
-        STATE.height = newHeight;
-        STATE.minDim = Math.min(STATE.width, STATE.height);
 
         const deviceDpr = window.devicePixelRatio || 1;
         const normalCap = (isMobile || isWeChat) ? CONFIG.dprHighCap : CONFIG.dprDesktopCap;
         const cap = STATE.lowPowerMode ? CONFIG.dprLowCap : normalCap;
-        STATE.dpr = Math.min(deviceDpr, cap);
+        const nextDpr = Math.min(deviceDpr, cap);
 
-        canvas.width = Math.floor(STATE.width * STATE.dpr);
-        canvas.height = Math.floor(STATE.height * STATE.dpr);
+        if (!force && STATE.width > 0 && STATE.height > 0) {
+            const dw = Math.abs(newWidth - STATE.width);
+            const dh = Math.abs(newHeight - STATE.height);
+            const wr = dw / Math.max(1, STATE.width);
+            const hr = dh / Math.max(1, STATE.height);
+            const dprDelta = Math.abs(nextDpr - STATE.dpr);
+            const pxThreshold = Math.max(3, Math.round(Math.min(newWidth, newHeight) * 0.012));
+            if (dw < pxThreshold && dh < pxThreshold && wr < 0.015 && hr < 0.015 && dprDelta < 0.02) return;
+        }
 
-        // 避免缩放累积 bug
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.setTransform(STATE.dpr, 0, 0, STATE.dpr, 0, 0);
+        const prevMinDim = STATE.minDim;
+        const prevDpr = STATE.dpr;
+        const prevArea = Math.max(1, STATE.width * STATE.height);
+
+        STATE.width = newWidth;
+        STATE.height = newHeight;
+        STATE.minDim = Math.min(STATE.width, STATE.height);
+        STATE.dpr = nextDpr;
+
+        const targetCanvasWidth = Math.max(1, Math.floor(STATE.width * STATE.dpr));
+        const targetCanvasHeight = Math.max(1, Math.floor(STATE.height * STATE.dpr));
+        const canvasChanged = force || canvas.width !== targetCanvasWidth || canvas.height !== targetCanvasHeight;
+        if (canvasChanged) {
+            canvas.width = targetCanvasWidth;
+            canvas.height = targetCanvasHeight;
+
+            // 閬垮厤缂╂斁绱Н bug
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.setTransform(STATE.dpr, 0, 0, STATE.dpr, 0, 0);
+        }
 
         fitLoadingTitles();
 
-        if (STATE.running && STATE.phase !== CONFIG.phase.finale) {
-            const dprChanged = Math.abs(STATE.dpr - prevDpr) > 0.01;
-            const minDimChanged = prevMinDim > 0
-                ? Math.abs(STATE.minDim - prevMinDim) / prevMinDim > 0.09
-                : true;
-            if (dprChanged || minDimChanged) rebuildPhotoCache();
+        const dprChanged = Math.abs(STATE.dpr - prevDpr) > 0.02;
+        const minDimChanged = prevMinDim > 0
+            ? Math.abs(STATE.minDim - prevMinDim) / prevMinDim > 0.06
+            : true;
+        const areaChanged = Math.abs((STATE.width * STATE.height) - prevArea) / prevArea > 0.08;
+        if (dprChanged || minDimChanged || areaChanged || force) {
+            rebuildBackgroundDecor();
+        }
+        if (dprChanged || minDimChanged || areaChanged) {
+            clearRenderCaches();
+            if (STATE.running && STATE.phase !== CONFIG.phase.finale) rebuildPhotoCache();
         }
     }
 
@@ -1171,7 +2260,7 @@
             STATE.assetsLoaded = true;
             setTitleLoadingBlink(false);
             rebuildPhotoCache();
-            startShow();
+            scheduleStartShow();
         }
 
         for (let i = 1; i <= CONFIG.imageCount; i++) {
@@ -1190,7 +2279,7 @@
             return;
         }
 
-        const baseR = STATE.minDim * 0.24;
+        const baseR = STATE.minDim * (STATE.lowPowerMode ? 0.28 : 0.32);
         const size = baseR * 2 + 4;
 
         const off = document.createElement('canvas');
@@ -1293,10 +2382,33 @@
     }
 
     function updateQuality() {
+        if (CONFIG.force60Mode && STATE.phase === CONFIG.phase.finale) {
+            let target = 0.66;
+            if (STATE.fps < 50) target = 0.58;
+            if (STATE.fps < 44) target = 0.50;
+            if (STATE.fps < 38) target = 0.44;
+            STATE.targetQualityScale = target;
+            STATE.qualityScale += (STATE.targetQualityScale - STATE.qualityScale) * 0.12;
+            STATE.qualityScale = Math.max(0.42, Math.min(0.72, STATE.qualityScale));
+            if (!STATE.lowPowerMode) {
+                STATE.lowPowerMode = true;
+                clearRenderCaches();
+                applyViewportSize(true);
+            }
+            return;
+        }
+
         let target = 1;
-        if (STATE.avgDt > 24 || STATE.fps < 38) target = 0.58;
-        else if (STATE.avgDt > 20 || STATE.fps < 44) target = 0.72;
-        else if (STATE.avgDt > 17 || STATE.fps < 52) target = 0.86;
+        if (CONFIG.force60Mode) {
+            if (STATE.avgDt > 22 || STATE.fps < 42) target = 0.55;
+            else if (STATE.avgDt > 18 || STATE.fps < 50) target = 0.68;
+            else if (STATE.avgDt > 16.8 || STATE.fps < 58) target = 0.82;
+            else target = 0.94;
+        } else {
+            if (STATE.avgDt > 24 || STATE.fps < 38) target = 0.58;
+            else if (STATE.avgDt > 20 || STATE.fps < 44) target = 0.72;
+            else if (STATE.avgDt > 17 || STATE.fps < 52) target = 0.86;
+        }
 
         STATE.targetQualityScale = target;
         STATE.qualityScale += (STATE.targetQualityScale - STATE.qualityScale) * 0.08;
@@ -1306,7 +2418,8 @@
         if (shouldLow && !STATE.lowPowerMode) {
             STATE.lowPowerMode = true;
             STATE.recoverCounter = 0;
-            applyViewportSize();
+            clearRenderCaches();
+            applyViewportSize(true);
             return;
         }
 
@@ -1316,7 +2429,8 @@
                 if (STATE.recoverCounter >= CONFIG.highRecoverFrames) {
                     STATE.lowPowerMode = false;
                     STATE.recoverCounter = 0;
-                    applyViewportSize();
+                    clearRenderCaches();
+                    applyViewportSize(true);
                 }
             } else {
                 STATE.recoverCounter = 0;
@@ -1328,9 +2442,19 @@
         if (STATE.phase === CONFIG.phase.photoShow) updatePhotoShow(now);
         else updateFinale(now);
 
+        // Consume queued particle tasks in small slices each frame.
+        if (!CONFIG.force60Mode || STATE.phase !== CONFIG.phase.finale || (frameTick & 1) === 0) {
+            processSpawnTasks();
+        }
+
         for (let i = rockets.length - 1; i >= 0; i--) {
             rockets[i].update(dt);
             if (rockets[i].done) rockets.splice(i, 1);
+        }
+
+        for (let i = photoFireworks.length - 1; i >= 0; i--) {
+            photoFireworks[i].update(dt);
+            if (photoFireworks[i].dead) photoFireworks.splice(i, 1);
         }
 
         for (let i = bursts.length - 1; i >= 0; i--) {
@@ -1338,25 +2462,26 @@
             if (bursts[i].dead) bursts.splice(i, 1);
         }
 
-        for (let i = photoOverlays.length - 1; i >= 0; i--) {
-            photoOverlays[i].update(dt);
-            if (photoOverlays[i].dead) photoOverlays.splice(i, 1);
-        }
-
         for (let i = activeParticles.length - 1; i >= 0; i--) {
             activeParticles[i].update(dt);
             if (!activeParticles[i].active) recycleParticle(i);
+        }
+
+        if (!(CONFIG.force60Mode && STATE.phase === CONFIG.phase.finale)) {
+            processSpawnTasks();
         }
     }
 
     function drawBackgroundFog(now) {
         if (STATE.phase !== CONFIG.phase.finale) return;
+        if (STATE.finaleGreetingShown) return;
+        if (CONFIG.force60Mode) return;
         if (STATE.lowPowerMode) return;
         if ((isMobile || isWeChat) && now < STATE.nextFogAt) return;
         if (isMobile || isWeChat) STATE.nextFogAt = now + 85;
 
         const t = now * 0.001;
-        const alpha = (isMobile || isWeChat) ? 0.045 : 0.058;
+        const alpha = (isMobile || isWeChat) ? 0.022 : 0.030;
         const x = STATE.width * (0.5 + Math.sin(t * 0.17) * 0.18);
         const y = STATE.height * 0.45;
         const r = STATE.minDim * 0.72;
@@ -1378,22 +2503,30 @@
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
         const clearA = STATE.lowPowerMode ? CONFIG.clearAlphaLow : CONFIG.clearAlphaHigh;
-        ctx.fillStyle = `rgba(0,0,0,${clearA})`;
-        ctx.fillRect(0, 0, STATE.width, STATE.height);
+        drawPhaseBackground(now, clearA);
 
         drawBackgroundFog(now);
 
         for (let i = 0; i < rockets.length; i++) rockets[i].draw(ctx);
+        for (let i = 0; i < photoFireworks.length; i++) photoFireworks[i].drawRocket(ctx);
 
         let maxBlur = 0;
         for (let i = 0; i < bursts.length; i++) {
             const b = bursts[i].blur();
             if (b > maxBlur) maxBlur = b;
         }
+        if (photoFireworks.length > 0 && !STATE.lowPowerMode && STATE.fps >= 48) {
+            maxBlur = Math.max(maxBlur, (isMobile || isWeChat) ? 1 : 2);
+        }
+        if (CONFIG.force60Mode && STATE.phase !== CONFIG.phase.finale) maxBlur = 0;
 
-        // lighter 仅用于烟花粒子段
+        // lighter 浠呯敤浜庣儫鑺辩矑瀛愭
         ctx.save();
-        const mobileHeavy = (isMobile || isWeChat) && (STATE.lowPowerMode || STATE.fps < 50);
+        const mobileHeavy = CONFIG.force60Mode
+            ? (STATE.phase === CONFIG.phase.finale
+                ? true
+                : true)
+            : ((isMobile || isWeChat) && (STATE.lowPowerMode || STATE.fps < 50));
         ctx.globalCompositeOperation = mobileHeavy ? 'source-over' : 'lighter';
         if (maxBlur > 0) {
             let blur = maxBlur;
@@ -1407,13 +2540,34 @@
             ctx.shadowBlur = 0;
         }
 
-        for (let i = 0; i < activeParticles.length; i++) {
-            activeParticles[i].draw(ctx);
+        for (let i = 0; i < photoFireworks.length; i++) {
+            photoFireworks[i].drawBurst(ctx, mobileHeavy);
+        }
+
+        for (let i = 0; i < bursts.length; i++) {
+            bursts[i].drawPhotoRing(ctx, mobileHeavy);
+        }
+        for (let i = 0; i < bursts.length; i++) {
+            bursts[i].drawFinaleShell(ctx, mobileHeavy);
+        }
+
+        if (
+            !CONFIG.force60Mode ||
+            STATE.phase !== CONFIG.phase.finale ||
+            (frameTick % CONFIG.finaleParticleFrameSkipForce60) === 0
+        ) {
+            drawParticlesBatched(ctx);
         }
 
         const flashLite = isMobile || isWeChat;
-        const flashMax = flashLite ? ((STATE.lowPowerMode || STATE.fps < 50) ? 2 : 4) : bursts.length;
+        const allFlashCount = bursts.length + photoFireworks.length;
+        const flashMax = flashLite ? ((STATE.lowPowerMode || STATE.fps < 50) ? 2 : 5) : allFlashCount;
         let flashCount = 0;
+        for (let i = 0; i < photoFireworks.length; i++) {
+            if (flashCount >= flashMax) break;
+            photoFireworks[i].drawCenterFlash(ctx, flashLite);
+            flashCount += 1;
+        }
         for (let i = 0; i < bursts.length; i++) {
             if (flashCount >= flashMax) break;
             bursts[i].drawCenterFlash(ctx, flashLite);
@@ -1424,8 +2578,8 @@
         if (STATE.phase === CONFIG.phase.photoShow) {
             ctx.save();
             ctx.globalCompositeOperation = 'source-over';
-            for (let i = 0; i < photoOverlays.length; i++) {
-                photoOverlays[i].draw(ctx);
+            for (let i = 0; i < photoFireworks.length; i++) {
+                photoFireworks[i].drawPhoto(ctx);
             }
             ctx.restore();
         }
@@ -1435,28 +2589,45 @@
             ctx.fillStyle = `rgba(0,0,0,${p * 0.9})`;
             ctx.fillRect(0, 0, STATE.width, STATE.height);
         }
+
+        if (STATE.phase === CONFIG.phase.finale && STATE.finaleGreetingShown) {
+            drawFinaleGreeting(now);
+        }
     }
 
     function updateDebug() {
         if (!debugOn) return;
+        let rocketUpCount = 0;
+        let burstExpandCount = 0;
+        let fallRevealCount = 0;
+        for (let i = 0; i < photoFireworks.length; i++) {
+            const s = photoFireworks[i].stage;
+            if (s === photoStage.rocketUp) rocketUpCount += 1;
+            else if (s === photoStage.burstExpand) burstExpandCount += 1;
+            else if (s === photoStage.fallReveal) fallRevealCount += 1;
+        }
         debugPanel.textContent =
             `FPS: ${STATE.fps}\n` +
             `particles: ${activeParticles.length}\n` +
+            `spawnQ: ${spawnTasks.length} budget:${Number.isFinite(spawnBudget) ? spawnBudget : 'inf'}\n` +
+            `photoFW: ${photoFireworks.length} (up:${rocketUpCount}, burst:${burstExpandCount}, fall:${fallRevealCount})\n` +
             `phase: ${STATE.phase}\n` +
             `dpr: ${STATE.dpr.toFixed(2)}\n` +
             `mode: ${STATE.lowPowerMode ? 'LowPower' : 'Normal'}\n` +
-            `q: ${STATE.qualityScale.toFixed(2)}`;
+            `q: ${STATE.qualityScale.toFixed(2)} force60:${CONFIG.force60Mode ? 'on' : 'off'}`;
     }
 
     function loop(ts) {
         if (!STATE.running) return;
         rafId = requestAnimationFrame(loop);
+        frameTick = (frameTick + 1) & 4095;
 
         const elapsed = ts - lastTs;
         const dt = elapsed > 120 ? 16.67 : Math.min(40, Math.max(8, elapsed));
         lastTs = ts;
 
         pushDt(dt);
+        spawnBudget = currentSpawnBudget();
         updateQuality();
         updateEntities(dt, ts);
 
@@ -1472,10 +2643,18 @@
 
     function startShow() {
         if (STATE.running) return;
+        if (startDelayTimer) {
+            clearTimeout(startDelayTimer);
+            startDelayTimer = 0;
+        }
+        STATE.startScheduled = false;
         STATE.running = true;
         STATE.phase = CONFIG.phase.photoShow;
         STATE.mainImageIndex = 1;
         STATE.finalePendingAt = 0;
+        STATE.finaleGreetingShown = false;
+        STATE.finaleGreetingStart = 0;
+        spawnTasks.length = 0;
 
         const n = nowMs();
         lastTs = n;
@@ -1490,6 +2669,21 @@
         rafId = requestAnimationFrame(loop);
     }
 
+    function scheduleStartShow() {
+        if (STATE.running || STATE.startScheduled) return;
+        const waitMs = Math.max(0, CONFIG.introHoldExtraMs | 0);
+        if (waitMs <= 0) {
+            startShow();
+            return;
+        }
+        STATE.startScheduled = true;
+        startDelayTimer = window.setTimeout(() => {
+            startDelayTimer = 0;
+            STATE.startScheduled = false;
+            if (!STATE.running) startShow();
+        }, waitMs);
+    }
+
     function bindVisibilityPause() {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -1497,6 +2691,9 @@
                 if (STATE.running && rafId) {
                     cancelAnimationFrame(rafId);
                     rafId = 0;
+                }
+                if (bgMusic && !bgMusic.paused) {
+                    bgMusic.pause();
                 }
                 return;
             }
@@ -1506,16 +2703,23 @@
                 lastTs = nowMs();
                 if (!rafId) rafId = requestAnimationFrame(loop);
             }
+            playBackgroundMusic();
         });
     }
 
     function bindResize() {
-        const onResize = () => {
+        let settleTimer = 0;
+        const scheduleApply = () => {
             if (resizeRaf) return;
             resizeRaf = requestAnimationFrame(() => {
                 resizeRaf = 0;
                 applyViewportSize();
             });
+        };
+        const onResize = () => {
+            scheduleApply();
+            if (settleTimer) clearTimeout(settleTimer);
+            settleTimer = window.setTimeout(scheduleApply, 140);
         };
         window.addEventListener('resize', onResize, { passive: true });
         window.addEventListener('orientationchange', onResize, { passive: true });
@@ -1530,11 +2734,14 @@
             loadImagesThenStart();
             return;
         }
-        if (STATE.assetsLoaded && !STATE.running) startShow();
+        if (STATE.assetsLoaded && !STATE.running) scheduleStartShow();
     }
 
     function bindStartFallback() {
-        const onceStart = () => ensureStarted();
+        const onceStart = () => {
+            playBackgroundMusic();
+            ensureStarted();
+        };
         document.addEventListener('touchstart', onceStart, { passive: true, once: true });
         document.addEventListener('click', onceStart, { passive: true, once: true });
     }
@@ -1557,11 +2764,15 @@
     }
 
     function init() {
-        applyViewportSize();
+        applyViewportSize(true);
         bindResize();
         bindDebugToggle();
         bindVisibilityPause();
         bindStartFallback();
+        if (isWeChat) {
+            document.addEventListener('WeixinJSBridgeReady', playBackgroundMusic, false);
+        }
+        playBackgroundMusic();
 
         setTitleLoadingBlink(true);
         ensureStarted();
