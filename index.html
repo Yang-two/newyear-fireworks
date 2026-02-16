@@ -1,99 +1,204 @@
 <!DOCTYPE html>
+<!--
+性能优化说明（移动端/微信重点）：
+1) 移除 visualViewport.scroll 触发，避免地址栏滚动导致高频 resize 抖动。
+2) resize 改为 requestAnimationFrame 节流，同一帧只执行一次 applyViewportSize。
+3) applyViewportSize 增加 early-return（尺寸变化 <2px 直接返回），避免重复重设画布。
+4) 运行中缓存重建增加条件门控：仅 DPR 变化或 minDim 变化超过 9% 时触发。
+5) 照片缓存改为分帧增量重建（每帧 1~2 张），防止单帧阻塞。
+6) finale 阶段跳过照片缓存重建，避免无效开销。
+7) 移动端降低 lighter/shadowBlur/centerFlash/fog 的开销，低功耗进一步降级。
+8) 粒子发射加入严格预算限流，避免瞬时峰值导致掉帧尖峰。
+9) rAF 恢复时钳制大 dt，降低后台切回前台后的闪烁与卡顿。
+-->
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>新年烟花</title>
     <style>
-        html, body {
-            margin: 0;
+        :root {
+            --vvh: 100vh;
+            --title-main-size: 72px;
+            --title-sub-size: 66px;
+            --title-gap-size: 12px;
+        }
+
+        html,
+        body {
             width: 100%;
             height: 100%;
+            margin: 0;
             overflow: hidden;
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
             -webkit-user-select: none;
             user-select: none;
-            background: #07070a;
+            background: #060609;
             font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
         }
 
         #app {
             position: fixed;
             inset: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            height: var(--vvh, 100vh);
             overflow: hidden;
             background:
-                radial-gradient(120% 120% at 50% 100%, rgba(170, 20, 20, 0.18) 0%, rgba(18, 12, 22, 0.42) 52%, rgba(7, 7, 10, 0.96) 100%),
+                radial-gradient(120% 120% at 50% 100%, rgba(170, 20, 20, 0.20) 0%, rgba(18, 12, 22, 0.42) 52%, rgba(7, 7, 10, 0.96) 100%),
                 linear-gradient(180deg, #120913 0%, #09070d 100%);
         }
 
+        @supports (height: 100dvh) {
+            #app {
+                height: 100dvh;
+            }
+        }
+
+        @supports not (height: 100dvh) {
+            #app {
+                height: 100svh;
+            }
+        }
+
         #canvas {
-            position: absolute;
+            position: fixed;
             inset: 0;
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            height: var(--vvh, 100vh);
             display: block;
+        }
+
+        @supports (height: 100dvh) {
+            #canvas {
+                height: 100dvh;
+            }
+        }
+
+        @supports not (height: 100dvh) {
+            #canvas {
+                height: 100svh;
+            }
         }
 
         #startOverlay {
             position: absolute;
             inset: 0;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.68);
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            height: var(--vvh, 100vh);
+            z-index: 8;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-direction: column;
-            color: #fff;
-            text-align: center;
-            padding: 24px;
-            box-sizing: border-box;
+            pointer-events: none;
+            transition: opacity 0.8s ease;
+            background: transparent;
+            opacity: 1;
+        }
+
+        #startOverlay.hide {
+            opacity: 0;
         }
 
         .festive-wrap {
-            position: relative;
-            width: min(92vw, 760px);
-            padding: 18px 16px 20px;
-            border-radius: 16px;
-            background: radial-gradient(circle at 50% 35%, rgba(120, 20, 20, 0.45) 0%, rgba(35, 8, 10, 0.55) 75%, rgba(0, 0, 0, 0.2) 100%);
-            border: 1px solid rgba(255, 220, 140, 0.18);
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            height: var(--vvh, 100vh);
+            max-width: none;
+            padding: 20px 16px 22px;
+            border-radius: 0;
+            background: radial-gradient(circle at 50% 35%, rgba(120, 20, 20, 0.42) 0%, rgba(35, 8, 10, 0.52) 75%, rgba(0, 0, 0, 0.16) 100%);
+            border: 0;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
         }
 
-        .gold-word {
-            text-align: center;
-            font-family: "STKaiti", "KaiTi", "SimSun", serif;
-            font-weight: 900;
-            line-height: 1.18;
-            letter-spacing: 0.12em;
+        .title {
             margin: 0;
-            background: linear-gradient(135deg, #bf953f 0%, #fcf6ba 25%, #b38728 50%, #fbf5b7 75%, #aa771c 100%);
-            background-size: 200% auto;
+            font-family: "STKaiti", "Kaiti SC", "KaiTi", "STXingkai", "Xingkai SC", "Songti SC", serif;
+            font-weight: 900;
+            line-height: 1.08;
+            letter-spacing: 0.04em;
+            font-size: clamp(44px, 9vw, 120px);
+            background: linear-gradient(132deg, #fff8da 0%, #ffe79a 18%, #ffd66a 38%, #ffba2f 58%, #ffcf68 76%, #fff2c6 100%);
+            background-size: 240% auto;
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
             color: transparent;
-            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.7));
-            animation: shine 4s linear infinite;
+            text-shadow:
+                0 0 8px rgba(255, 240, 185, 0.75),
+                0 0 20px rgba(255, 214, 112, 0.55),
+                0 0 32px rgba(255, 176, 45, 0.42),
+                0 1px 0 rgba(140, 62, 0, 0.35),
+                0 -1px 0 rgba(255, 247, 214, 0.52);
+            opacity: 1;
+            animation: titleFlow 12s linear infinite, titleBreath 4.8s ease-in-out infinite;
         }
 
-        .gold-word.main {
-            font-size: clamp(36px, 8vw, 64px);
-            margin-top: 2px;
-        }
-
-        .gold-word.subline {
-            font-size: clamp(30px, 7vw, 54px);
+        .title + .title {
             margin-top: 4px;
         }
 
+        .loading-blink {
+            animation: titleFlow 11s linear infinite, titleBreath 4.2s ease-in-out infinite;
+        }
+
+        .festive-text-box {
+            width: min(96vw, 1300px);
+            height: 80vh;
+            height: calc(var(--vvh, 100vh) * 0.8);
+            display: grid;
+            grid-template-rows: auto auto;
+            place-items: center;
+            align-content: center;
+            justify-items: center;
+            gap: var(--title-gap-size);
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+
+        .festive-text-box .title,
+        .title.main,
+        .title.subline {
+            position: static !important;
+            top: auto !important;
+            left: auto !important;
+            transform: none !important;
+            margin: 0;
+        }
+
+        .title.main {
+            font-size: var(--title-main-size);
+            line-height: 1.08;
+        }
+
+        .title.subline {
+            font-size: var(--title-sub-size);
+            line-height: 1.08;
+        }
+
         .fu-decoration {
-            position: absolute;
-            top: 14px;
+            position: fixed;
             width: 1.5em;
             height: 1.5em;
             font-family: "STKaiti", "KaiTi", serif;
-            font-size: clamp(30px, 6vw, 50px);
+            font-size: clamp(34px, 6.8vw, 56px);
             color: #ffd700;
             background: #aa0000;
             border: 2px solid #ffd700;
@@ -101,7 +206,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+            box-shadow:
+                0 0 10px rgba(255, 228, 136, 0.55),
+                0 0 20px rgba(255, 190, 36, 0.45),
+                inset 0 0 8px rgba(255, 234, 170, 0.35);
+            filter: drop-shadow(0 0 8px rgba(255, 210, 90, 0.62));
         }
 
         .fu-decoration span {
@@ -110,65 +219,49 @@
             margin-top: 0.05em;
         }
 
-        .fu-left { left: 14px; }
-        .fu-right { right: 14px; }
+        .fu-left {
+            left: calc(env(safe-area-inset-left, 0px) + 18px);
+            top: calc(env(safe-area-inset-top, 0px) + 18px);
+        }
+
+        .fu-right {
+            right: calc(env(safe-area-inset-right, 0px) + 18px);
+            top: calc(env(safe-area-inset-top, 0px) + 18px);
+        }
 
         .horse-decoration {
-            position: absolute;
-            bottom: 12px;
+            position: fixed;
             font-size: clamp(30px, 6vw, 48px);
-            filter: drop-shadow(0 0 4px rgba(255,215,0,0.55));
+            filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.55));
             opacity: 0.95;
         }
 
         .horse-left {
-            left: 18px;
+            left: calc(env(safe-area-inset-left, 0px) + 18px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
             transform: scaleX(-1);
         }
 
         .horse-right {
-            right: 18px;
-        }
-
-        @keyframes shine {
-            to { background-position: 200% center; }
-        }
-
-        #startOverlay .title {
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }
-
-        #startOverlay .sub {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.82);
-            line-height: 1.6;
-            max-width: 520px;
-        }
-
-        #protocolTip {
-            margin-top: 12px;
-            font-size: 12px;
-            color: #ffd8aa;
-            line-height: 1.5;
-            display: none;
+            right: calc(env(safe-area-inset-right, 0px) + 18px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
         }
 
         #debugToggle {
+            display: none;
             position: absolute;
             right: 8px;
             top: 8px;
             z-index: 20;
-            color: rgba(255, 255, 255, 0.8);
+            color: rgba(255, 255, 255, 0.84);
             font-size: 11px;
             padding: 3px 6px;
             border-radius: 6px;
             background: rgba(0, 0, 0, 0.35);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            cursor: pointer;
             -webkit-tap-highlight-color: transparent;
+            pointer-events: auto;
+            user-select: none;
         }
 
         #debugPanel {
@@ -188,15 +281,21 @@
             pointer-events: none;
         }
 
-        #loadingText {
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-            bottom: 12px;
-            z-index: 12;
-            color: rgba(255, 255, 255, 0.88);
-            font-size: 12px;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        @keyframes titleFlow {
+            to {
+                background-position: 240% center;
+            }
+        }
+
+        @keyframes titleBreath {
+            0%, 100% {
+                filter: brightness(1) saturate(1);
+                opacity: 0.96;
+            }
+            50% {
+                filter: brightness(1.08) saturate(1.06);
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -211,28 +310,25 @@
             <div class="horse-decoration horse-left">🐎</div>
             <div class="horse-decoration horse-right">🐎</div>
 
-            <p class="gold-word main">新年快乐</p>
-            <p class="gold-word subline">马年大吉</p>
-
-            <div class="title">点击开始烟花</div>
-            <div class="sub">15 张照片烟花播放完成后将自动进入 Finale 满屏庆典烟花。</div>
+            <div class="festive-text-box">
+                <p class="title main loading-title loading-blink">新年大吉</p>
+                <p class="title subline loading-title loading-blink">马年大吉</p>
+            </div>
         </div>
-        <div id="protocolTip">请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网</div>
     </div>
 
     <div id="debugToggle">Debug: Off</div>
     <div id="debugPanel"></div>
-    <div id="loadingText"></div>
 </div>
 
 <script>
 /*
  * WeChat compatibility notes
- * 1) 仅使用 Canvas 2D，不依赖 OffscreenCanvas / WebGL。
- * 2) getContext('2d', {alpha:false}) 失败时自动回退 getContext('2d')。
- * 3) 微信/移动端必须用户手势启动：touchstart + click 触发启动。
- * 4) 资源路径使用相对路径 ./picture/1.jpg ~ ./picture/15.jpg。
- * 5) 若 file:// 打开导致图片不可读，显示清晰提示文案。
+ * 1) Canvas 仅使用 2D；先尝试 {alpha:false, desynchronized:true}，失败回退普通 2D。
+ * 2) 图片路径使用 ./picture/x.jpg，相对路径可直接用于同域 H5。
+ * 3) 自动加载完成后直接开始；click/touch 仍作为兜底触发，不显示任何点击提示文案。
+ * 4) resize 每次先 setTransform(1,0,0,1,0,0) 再 setTransform(dpr,0,0,dpr,0,0)，避免缩放累积。
+ * 5) visibilitychange 切后台暂停渲染，回前台恢复，减少微信后台耗电和卡顿。
  */
 
 (() => {
@@ -245,92 +341,97 @@
             finale: 'finale'
         },
 
-        // Photo show（15张）
         photoGapMs: [2200, 3200],
         photoTargetX: [0.20, 0.80],
         photoTargetY: [0.12, 0.40],
         photoBurstRadiusHigh: [0.38, 0.48],
         photoBurstRadiusLow: [0.30, 0.40],
-        photoStreakCountHigh: [360, 520],
-        photoStreakCountLow: [240, 360],
+        photoStreakCountHigh: [240, 340],
+        photoStreakCountLow: [150, 230],
 
-        // 火箭 & 线束
         streakSpeedFactor: [0.010, 0.018],
-        streakWidth: [1.0, 2.4],
-        streakLifeMs: [900, 1650],
-        rocketTrailPerFrame: 3,
+        streakWidth: [0.9, 2.2],
+        streakLifeMs: [860, 1480],
+        rocketTrailPerFrame: 2,
 
-        // 中心亮核与发光
-        shadowBlurStrong: [18, 26],
-        shadowBlurWeak: [6, 10],
+        shadowBlurStrong: [12, 20],
+        shadowBlurWeak: [4, 8],
         shadowStrongFrames: 6,
         shadowTotalFrames: 12,
-        centerFlashRadiusRatio: 0.25,
+        centerFlashRadiusRatio: 0.24,
 
-        // 照片融合
         photoDelayMs: [120, 200],
-        photoFadeInMs: 260,
-        photoHoldMs: 1500,
-        photoFadeOutMs: 700,
+        photoFadeInMs: 250,
+        photoHoldMs: 1450,
+        photoFadeOutMs: 680,
         photoDiameterRatio: [0.38, 0.50],
         haloDiameterRatio: [0.55, 0.70],
         featherRatio: 0.18,
 
-        // 小烟花（两阶段都用）
-        miniGapHigh: [850, 1400],
-        miniGapLow: [1300, 2200],
+        miniGapHigh: [1200, 1800],
+        miniGapLow: [1500, 2400],
         miniTargetX: [0.10, 0.90],
         miniTargetY: [0.12, 0.55],
-        miniBurstCountHigh: [16, 30],
-        miniBurstCountLow: [9, 18],
-        miniLifeMs: [800, 1600],
-        miniSpeed: [70, 180],
+        miniBurstCountHigh: [8, 14],
+        miniBurstCountLow: [5, 10],
 
-        // Finale
         finaleDuration: [12000, 18000],
         finaleVolleyInterval: [500, 900],
         finaleVolleyCountRange: [3, 7],
-        finaleBurstRadius: [0.30, 0.55],
+        finaleBurstRadius: [0.45, 0.75],
         finaleTargetX: [0.10, 0.90],
         finaleTargetY: [0.08, 0.55],
-        finaleStreakCountHigh: [300, 460],
-        finaleStreakCountLow: [190, 300],
+        finaleStreakCountHigh: [180, 260],
+        finaleStreakCountLow: [120, 190],
         finaleColorPalette: ['#ffefb0', '#ffd676', '#ffb45e', '#ff944f', '#ff6c52', '#fff7df'],
-        finaleEndMode: 'loop', // 'fadeout' | 'loop'
+        finaleEndMode: 'loop',
         finaleFadeoutMs: 5000,
 
-        // 性能
-        maxParticlesPhotoHigh: 900,
-        maxParticlesPhotoLow: 560,
-        maxParticlesFinaleHigh: 1400,
-        maxParticlesFinaleLow: 900,
-        dtWindowSize: 30,
-        lowEnterFps: 45,
-        lowEnterDt: 22,
-        highExitDt: 16,
-        highRecoverFrames: 60,
+        maxParticlesPhotoHigh: 760,
+        maxParticlesPhotoLow: 500,
+        maxParticlesFinaleHigh: 920,
+        maxParticlesFinaleLow: 700,
 
-        // 渲染
-        dprHighCap: 2,
-        dprLowCap: 1.25,
-        clearAlphaHigh: 0.16,
+        dtWindowSize: 30,
+        lowEnterFps: 50,
+        lowEnterDt: 20,
+        highExitFps: 58,
+        highExitDt: 16,
+        highRecoverFrames: 80,
+
+        dprDesktopCap: 1.8,
+        dprHighCap: 1.45,
+        dprLowCap: 1.15,
+
+        clearAlphaHigh: 0.20,
         clearAlphaLow: 0.22,
 
-        // 切 finale 时机：最后一张爆炸后延时
         finaleDelayAfterLastBurst: [1500, 2500]
     };
+
+    const ua = navigator.userAgent || '';
+    const isWeChat = /MicroMessenger/i.test(ua);
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
 
     const STATE = {
         phase: CONFIG.phase.photoShow,
         running: false,
+        pausedByVisibility: false,
         lowPowerMode: false,
+        assetsLoaded: false,
+        loadRequested: false,
+
         dpr: 1,
         width: 0,
         height: 0,
         minDim: 0,
+
         fps: 60,
         avgDt: 16.6,
         recoverCounter: 0,
+        qualityScale: 1,
+        targetQualityScale: 1,
+        nextFogAt: 0,
 
         mainImageIndex: 1,
         nextPhotoLaunchAt: 0,
@@ -344,28 +445,39 @@
         finaleFadeStart: 0
     };
 
-    const app = document.getElementById('app');
     const canvas = document.getElementById('canvas');
     const startOverlay = document.getElementById('startOverlay');
-    const protocolTip = document.getElementById('protocolTip');
-    const loadingText = document.getElementById('loadingText');
     const debugToggle = document.getElementById('debugToggle');
     const debugPanel = document.getElementById('debugPanel');
+    const festiveTextBox = document.querySelector('.festive-text-box');
+    const loadingTitles = document.querySelectorAll('.loading-title');
+    const debugEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
 
     let ctx = null;
     try {
-        ctx = canvas.getContext('2d', { alpha: false });
+        ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
     } catch (e) {
         ctx = null;
+    }
+    if (!ctx) {
+        try {
+            ctx = canvas.getContext('2d', { alpha: false });
+        } catch (e) {
+            ctx = null;
+        }
     }
     if (!ctx) ctx = canvas.getContext('2d');
 
     const images = new Array(CONFIG.imageCount + 1);
     const photoCache = new Array(CONFIG.imageCount + 1);
 
-    const rockets = [];       // main/finale/mini rocket
-    const bursts = [];        // burst controllers
-    const photoOverlays = []; // photo overlays (only photoShow)
+    let photoCacheBuildToken = 0;
+    let photoCacheBuildRaf = 0;
+    let resizeRaf = 0;
+
+    const rockets = [];
+    const bursts = [];
+    const photoOverlays = [];
 
     const activeParticles = [];
     const particlePool = [];
@@ -376,7 +488,24 @@
     let dtIndex = 0;
 
     let lastTs = 0;
+    let rafId = 0;
     let debugOn = false;
+
+    const drawState = {
+        stroke: '',
+        fill: ''
+    };
+
+    if (isMobile || isWeChat) {
+        CONFIG.maxParticlesPhotoHigh = 600;
+        CONFIG.maxParticlesPhotoLow = 380;
+        CONFIG.maxParticlesFinaleHigh = 720;
+        CONFIG.maxParticlesFinaleLow = 520;
+        CONFIG.finaleStreakCountHigh = [140, 210];
+        CONFIG.finaleStreakCountLow = [90, 150];
+        CONFIG.dprHighCap = 1.25;
+        CONFIG.dprLowCap = 1.05;
+    }
 
     function rand(min, max) {
         return min + Math.random() * (max - min);
@@ -394,12 +523,32 @@
         return performance.now();
     }
 
-    function currentParticleLimit() {
-        const low = STATE.lowPowerMode;
-        if (STATE.phase === CONFIG.phase.finale) {
-            return low ? CONFIG.maxParticlesFinaleLow : CONFIG.maxParticlesFinaleHigh;
+    function setTitleLoadingBlink(isLoading) {
+        for (let i = 0; i < loadingTitles.length; i++) {
+            if (isLoading) loadingTitles[i].classList.add('loading-blink');
+            else loadingTitles[i].classList.remove('loading-blink');
         }
-        return low ? CONFIG.maxParticlesPhotoLow : CONFIG.maxParticlesPhotoHigh;
+    }
+
+    function currentSparkleChance() {
+        if (STATE.lowPowerMode || STATE.fps < 50) return 0;
+        if (isMobile || isWeChat) return 0.18;
+        return 0.32;
+    }
+
+    function currentParticleLimit() {
+        const q = STATE.qualityScale;
+        if (STATE.phase === CONFIG.phase.finale) {
+            return Math.round(CONFIG.maxParticlesFinaleLow + (CONFIG.maxParticlesFinaleHigh - CONFIG.maxParticlesFinaleLow) * q);
+        }
+        return Math.round(CONFIG.maxParticlesPhotoLow + (CONFIG.maxParticlesPhotoHigh - CONFIG.maxParticlesPhotoLow) * q);
+    }
+
+    function calcScaledRange(highRange, lowRange) {
+        const q = STATE.qualityScale;
+        const min = Math.round(lowRange[0] + (highRange[0] - lowRange[0]) * q);
+        const max = Math.round(lowRange[1] + (highRange[1] - lowRange[1]) * q);
+        return [Math.min(min, max), Math.max(min, max)];
     }
 
     class Particle {
@@ -448,23 +597,32 @@
 
             if (this.kind === 'trail' || this.kind === 'dust') {
                 g.globalAlpha = a;
-                g.fillStyle = this.color;
+                if (drawState.fill !== this.color) {
+                    g.fillStyle = this.color;
+                    drawState.fill = this.color;
+                }
                 const s = this.width;
                 g.fillRect(this.x - s * 0.5, this.y - s * 0.5, s, s);
                 return;
             }
 
             g.globalAlpha = a;
-            g.strokeStyle = this.color;
+            if (drawState.stroke !== this.color) {
+                g.strokeStyle = this.color;
+                drawState.stroke = this.color;
+            }
             g.lineWidth = this.width;
             g.beginPath();
             g.moveTo(this.px, this.py);
             g.lineTo(this.x, this.y);
             g.stroke();
 
-            if (this.sparkle && a < 0.55 && Math.random() < 0.35) {
-                g.fillStyle = this.sparkColor;
-                const s = this.kind === 'main' ? 2.2 : 1.5;
+            if (this.sparkle && a < 0.55 && Math.random() < currentSparkleChance()) {
+                if (drawState.fill !== this.sparkColor) {
+                    g.fillStyle = this.sparkColor;
+                    drawState.fill = this.sparkColor;
+                }
+                const s = this.kind === 'main' ? 2.0 : 1.4;
                 g.fillRect(this.x - s * 0.5, this.y - s * 0.5, s, s);
             }
         }
@@ -488,7 +646,7 @@
 
     class Rocket {
         constructor(opt) {
-            this.type = opt.type; // 'main' | 'mini' | 'finale'
+            this.type = opt.type;
             this.imageIndex = opt.imageIndex || 0;
             this.x = opt.startX;
             this.y = STATE.height + rand(6, 18);
@@ -506,26 +664,39 @@
         update(dt) {
             const dts = dt / 1000;
             this.jitterT += dts;
-            const side = Math.sin(this.jitterT * 16) * 0.8;
+            const side = Math.sin(this.jitterT * 16) * 0.7;
 
             this.x += (this.vx + side) * dts;
             this.y += this.vy * dts;
             this.vy += this.gravity * dts;
 
-            const trailCount = this.type === 'mini' ? 1 : CONFIG.rocketTrailPerFrame;
+            let trailCount;
+            if (this.type === 'mini') {
+                if (STATE.lowPowerMode || STATE.fps < 45) trailCount = 0;
+                else if (STATE.fps < 55) trailCount = 1;
+                else trailCount = 1;
+            } else {
+                if (STATE.lowPowerMode || STATE.fps < 45) trailCount = 0;
+                else if (STATE.fps < 55) trailCount = 1;
+                else trailCount = 2;
+            }
+
+            const budget = Math.max(0, currentParticleLimit() - activeParticles.length);
+            trailCount = Math.min(trailCount, budget);
+
             for (let i = 0; i < trailCount; i++) {
                 const p = getParticle();
                 if (!p) break;
                 p.reset({
                     x: this.x + rand(-2, 2),
                     y: this.y + rand(-2, 2),
-                    vx: rand(-22, 22),
-                    vy: rand(25, 120),
-                    gravity: rand(140, 260),
-                    drag: 0.988,
-                    life: rand(170, 340),
-                    color: '#fff',
-                    width: rand(1.0, 2.0),
+                    vx: rand(-18, 18),
+                    vy: rand(24, 104),
+                    gravity: rand(120, 220),
+                    drag: 0.989,
+                    life: rand(160, 300),
+                    color: '#ffffff',
+                    width: rand(1.0, 1.8),
                     kind: 'trail'
                 });
             }
@@ -539,16 +710,16 @@
         draw(g) {
             g.save();
             g.globalCompositeOperation = 'lighter';
-            g.globalAlpha = 0.98;
+            g.globalAlpha = 0.95;
             g.fillStyle = '#fff';
-            g.fillRect(this.x - 1.7, this.y - 1.7, 3.4, 3.4);
+            g.fillRect(this.x - 1.5, this.y - 1.5, 3, 3);
             g.restore();
         }
     }
 
     class Burst {
         constructor(opt) {
-            this.type = opt.type; // 'photo' | 'mini' | 'finale'
+            this.type = opt.type;
             this.x = opt.x;
             this.y = opt.y;
             this.imageIndex = opt.imageIndex || 0;
@@ -570,7 +741,17 @@
             const colors = opt.palette;
             const count = opt.count;
 
-            for (let i = 0; i < count; i++) {
+            const coreWanted = this.type === 'mini' ? 6 : (this.type === 'finale' ? 26 : 32);
+            const budget = Math.max(0, currentParticleLimit() - activeParticles.length);
+            if (budget <= 0) return;
+
+            const totalWanted = count + coreWanted;
+            const ratio = Math.min(1, budget / totalWanted);
+            const mainCount = Math.min(count, Math.floor(count * ratio));
+            const coreBudgetLeft = Math.max(0, budget - mainCount);
+            const coreCount = Math.min(coreWanted, coreBudgetLeft);
+
+            for (let i = 0; i < mainCount; i++) {
                 const p = getParticle();
                 if (!p) break;
 
@@ -582,8 +763,8 @@
                     y: this.y,
                     vx: Math.cos(a) * speed,
                     vy: Math.sin(a) * speed,
-                    gravity: rand(60, 150),
-                    drag: rand(0.985, 0.993),
+                    gravity: rand(60, 140),
+                    drag: rand(0.986, 0.994),
                     life: rand(CONFIG.streakLifeMs[0], CONFIG.streakLifeMs[1]),
                     color: pick(colors),
                     width: rand(CONFIG.streakWidth[0], CONFIG.streakWidth[1]),
@@ -593,8 +774,7 @@
                 });
             }
 
-            const core = this.type === 'mini' ? 8 : (this.type === 'finale' ? 44 : 58);
-            for (let i = 0; i < core; i++) {
+            for (let i = 0; i < coreCount; i++) {
                 const p = getParticle();
                 if (!p) break;
                 const a = rand(0, Math.PI * 2);
@@ -604,11 +784,11 @@
                     y: this.y,
                     vx: Math.cos(a) * v,
                     vy: Math.sin(a) * v,
-                    gravity: rand(40, 100),
-                    drag: rand(0.986, 0.994),
-                    life: rand(360, 760),
+                    gravity: rand(40, 90),
+                    drag: rand(0.987, 0.995),
+                    life: rand(300, 640),
                     color: '#fff6d8',
-                    width: rand(1.0, 2.0),
+                    width: rand(0.9, 1.6),
                     kind: 'trail'
                 });
             }
@@ -617,21 +797,42 @@
         update(dt) {
             this.ageMs += dt;
             this.frameAge += dt / (1000 / 60);
-            if (this.ageMs > 1850) this.dead = true;
+            if (this.ageMs > 1700) this.dead = true;
         }
 
         blur() {
+            if (isMobile || isWeChat) {
+                if (STATE.lowPowerMode || STATE.fps < 50) return 0;
+                if (this.frameAge <= 4) return 2;
+                if (this.frameAge <= 10) return 1;
+                return 0;
+            }
+            if (STATE.lowPowerMode) return 0;
             if (this.frameAge <= CONFIG.shadowStrongFrames) return this.blurStrong;
             if (this.frameAge <= CONFIG.shadowTotalFrames) return this.blurWeak;
             return 0;
         }
 
-        drawCenterFlash(g) {
+        drawCenterFlash(g, liteMode) {
             if (this.frameAge > CONFIG.shadowTotalFrames) return;
             const fr = this.radius * CONFIG.centerFlashRadiusRatio;
+            if (liteMode) {
+                g.fillStyle = this.type === 'finale' ? 'rgba(255,224,165,0.20)' : 'rgba(255,240,210,0.26)';
+                g.beginPath();
+                g.arc(this.x, this.y, fr * 0.42, 0, Math.PI * 2);
+                g.fill();
+                return;
+            }
+            if (this.type === 'finale') {
+                g.fillStyle = 'rgba(255,232,185,0.28)';
+                g.beginPath();
+                g.arc(this.x, this.y, fr * 0.55, 0, Math.PI * 2);
+                g.fill();
+                return;
+            }
             const grad = g.createRadialGradient(this.x, this.y, 0, this.x, this.y, fr);
             grad.addColorStop(0, 'rgba(255,255,255,0.95)');
-            grad.addColorStop(0.35, 'rgba(255,235,200,0.55)');
+            grad.addColorStop(0.35, 'rgba(255,235,200,0.5)');
             grad.addColorStop(1, 'rgba(255,255,255,0)');
             g.fillStyle = grad;
             g.beginPath();
@@ -661,8 +862,7 @@
         draw(g) {
             if (STATE.phase !== CONFIG.phase.photoShow) return;
             const img = photoCache[this.imageIndex];
-            if (!img) return;
-            if (this.t < this.delay) return;
+            if (!img || this.t < this.delay) return;
 
             const t = this.t - this.delay;
             let alpha = 1;
@@ -674,7 +874,6 @@
                 scale = 0.88 + 0.12 * p;
             } else if (t < CONFIG.photoFadeInMs + CONFIG.photoHoldMs) {
                 alpha = 1;
-                scale = 1;
             } else {
                 const p = Math.min(1, (t - CONFIG.photoFadeInMs - CONFIG.photoHoldMs) / CONFIG.photoFadeOutMs);
                 alpha = 1 - p;
@@ -703,7 +902,7 @@
             return STATE.minDim * rand(CONFIG.finaleBurstRadius[0], CONFIG.finaleBurstRadius[1]);
         }
         if (type === 'mini') {
-            return STATE.minDim * rand(0.08, 0.18);
+            return STATE.minDim * rand(0.08, 0.16);
         }
         if (STATE.lowPowerMode) {
             return STATE.minDim * rand(CONFIG.photoBurstRadiusLow[0], CONFIG.photoBurstRadiusLow[1]);
@@ -713,14 +912,14 @@
 
     function countForBurst(type) {
         if (type === 'finale') {
-            const range = STATE.lowPowerMode ? CONFIG.finaleStreakCountLow : CONFIG.finaleStreakCountHigh;
+            const range = calcScaledRange(CONFIG.finaleStreakCountHigh, CONFIG.finaleStreakCountLow);
             return randInt(range[0], range[1]);
         }
         if (type === 'mini') {
-            const range = STATE.lowPowerMode ? CONFIG.miniBurstCountLow : CONFIG.miniBurstCountHigh;
+            const range = calcScaledRange(CONFIG.miniBurstCountHigh, CONFIG.miniBurstCountLow);
             return randInt(range[0], range[1]);
         }
-        const range = STATE.lowPowerMode ? CONFIG.photoStreakCountLow : CONFIG.photoStreakCountHigh;
+        const range = calcScaledRange(CONFIG.photoStreakCountHigh, CONFIG.photoStreakCountLow);
         return randInt(range[0], range[1]);
     }
 
@@ -732,7 +931,7 @@
 
     function onRocketExplode(rocket) {
         if (rocket.type === 'mini') {
-            const b = new Burst({
+            bursts.push(new Burst({
                 type: 'mini',
                 x: rocket.x,
                 y: rocket.y,
@@ -740,13 +939,12 @@
                 count: countForBurst('mini'),
                 palette: paletteFor('mini'),
                 kind: 'mini'
-            });
-            bursts.push(b);
+            }));
             return;
         }
 
         if (rocket.type === 'finale') {
-            const b = new Burst({
+            bursts.push(new Burst({
                 type: 'finale',
                 x: rocket.x,
                 y: rocket.y,
@@ -754,12 +952,11 @@
                 count: countForBurst('finale'),
                 palette: paletteFor('finale'),
                 kind: 'main'
-            });
-            bursts.push(b);
+            }));
             return;
         }
 
-        const b = new Burst({
+        const burst = new Burst({
             type: 'photo',
             x: rocket.x,
             y: rocket.y,
@@ -769,14 +966,14 @@
             palette: paletteFor('photo'),
             kind: 'main'
         });
-        bursts.push(b);
+        bursts.push(burst);
 
         photoOverlays.push(new PhotoOverlay({
             imageIndex: rocket.imageIndex,
             x: rocket.x,
             y: rocket.y,
-            photoDiameter: b.photoDiameter,
-            haloDiameter: b.haloDiameter
+            photoDiameter: burst.photoDiameter,
+            haloDiameter: burst.haloDiameter
         }));
 
         if (rocket.imageIndex === CONFIG.imageCount && STATE.finalePendingAt === 0) {
@@ -811,7 +1008,6 @@
         let volleyMin = CONFIG.finaleVolleyCountRange[0];
         let volleyMax = CONFIG.finaleVolleyCountRange[1];
 
-        // 低帧降级：减少齐射数量
         if (STATE.fps < 45 || STATE.lowPowerMode) {
             volleyMin = Math.max(2, volleyMin - 1);
             volleyMax = Math.max(volleyMin, volleyMax - 2);
@@ -838,8 +1034,6 @@
         STATE.finalePendingAt = 0;
         STATE.finaleFading = false;
         STATE.finaleFadeStart = 0;
-
-        // 进入 finale 后不再显示照片层
         photoOverlays.length = 0;
     }
 
@@ -851,6 +1045,7 @@
         }
 
         if (now >= STATE.nextMiniLaunchAt) {
+            // 一次最多 1 个小烟花
             spawnMiniRocket();
             scheduleNextMini(now);
         }
@@ -863,9 +1058,8 @@
     function updateFinale(now) {
         if (now >= STATE.nextFinaleVolleyAt) {
             spawnFinaleVolley();
-            const [v0, v1] = CONFIG.finaleVolleyInterval;
-            let interval = rand(v0, v1);
-            if (STATE.fps < 45 || STATE.lowPowerMode) interval += 180;
+            let interval = rand(CONFIG.finaleVolleyInterval[0], CONFIG.finaleVolleyInterval[1]);
+            if (STATE.fps < 45 || STATE.lowPowerMode) interval += 200;
             STATE.nextFinaleVolleyAt = now + interval;
         }
 
@@ -888,132 +1082,197 @@
     }
 
     function scheduleNextMini(now) {
-        const range = STATE.lowPowerMode ? CONFIG.miniGapLow : CONFIG.miniGapHigh;
+        const range = calcScaledRange(CONFIG.miniGapHigh, CONFIG.miniGapLow);
         STATE.nextMiniLaunchAt = now + rand(range[0], range[1]);
+    }
+
+    function fitLoadingTitles() {
+        if (!festiveTextBox) return;
+        const vh = Math.max(1, STATE.height);
+        const vw = Math.max(1, STATE.width);
+
+        const targetHeight = vh * 0.8;
+        const maxTextWidth = vw * 0.93;
+        const charWidthFactor = 4.18;
+        const subRatio = 0.92;
+
+        const gap = Math.max(10, Math.min(38, targetHeight * 0.03));
+        const byHeight = (targetHeight - gap) / ((1.08) + (subRatio * 1.08));
+        const byWidthMain = maxTextWidth / charWidthFactor;
+        const byWidthSub = (maxTextWidth / charWidthFactor) / subRatio;
+
+        let main = Math.min(byHeight, byWidthMain, byWidthSub);
+        main = Math.max(48, Math.min(main, Math.min(vh * 0.38, 220)));
+        const sub = main * subRatio;
+
+        document.documentElement.style.setProperty('--title-main-size', `${Math.round(main)}px`);
+        document.documentElement.style.setProperty('--title-sub-size', `${Math.round(sub)}px`);
+        document.documentElement.style.setProperty('--title-gap-size', `${Math.round(gap)}px`);
+    }
+
+    function updateViewportVar() {
+        const vvh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty('--vvh', `${Math.max(1, Math.floor(vvh))}px`);
     }
 
     function applyViewportSize() {
         const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
         const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
-        STATE.width = Math.max(1, Math.floor(vw));
-        STATE.height = Math.max(1, Math.floor(vh));
+        const newWidth = Math.max(1, Math.floor(vw));
+        const newHeight = Math.max(1, Math.floor(vh));
+
+        if (STATE.width > 0 && STATE.height > 0) {
+            const dw = Math.abs(newWidth - STATE.width);
+            const dh = Math.abs(newHeight - STATE.height);
+            if (dw < 2 && dh < 2) return;
+        }
+
+        updateViewportVar();
+
+        const prevMinDim = STATE.minDim;
+        const prevDpr = STATE.dpr;
+
+        STATE.width = newWidth;
+        STATE.height = newHeight;
         STATE.minDim = Math.min(STATE.width, STATE.height);
 
-        const dprBase = window.devicePixelRatio || 1;
-        const cap = STATE.lowPowerMode ? CONFIG.dprLowCap : CONFIG.dprHighCap;
-        STATE.dpr = Math.min(dprBase, cap);
+        const deviceDpr = window.devicePixelRatio || 1;
+        const normalCap = (isMobile || isWeChat) ? CONFIG.dprHighCap : CONFIG.dprDesktopCap;
+        const cap = STATE.lowPowerMode ? CONFIG.dprLowCap : normalCap;
+        STATE.dpr = Math.min(deviceDpr, cap);
 
         canvas.width = Math.floor(STATE.width * STATE.dpr);
         canvas.height = Math.floor(STATE.height * STATE.dpr);
-        canvas.style.width = STATE.width + 'px';
-        canvas.style.height = STATE.height + 'px';
 
+        // 避免缩放累积 bug
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.scale(STATE.dpr, STATE.dpr);
+        ctx.setTransform(STATE.dpr, 0, 0, STATE.dpr, 0, 0);
 
-        if (STATE.running) {
-            rebuildPhotoCache();
+        fitLoadingTitles();
+
+        if (STATE.running && STATE.phase !== CONFIG.phase.finale) {
+            const dprChanged = Math.abs(STATE.dpr - prevDpr) > 0.01;
+            const minDimChanged = prevMinDim > 0
+                ? Math.abs(STATE.minDim - prevMinDim) / prevMinDim > 0.09
+                : true;
+            if (dprChanged || minDimChanged) rebuildPhotoCache();
         }
     }
 
     function loadImagesThenStart() {
+        if (STATE.loadRequested) return;
+        STATE.loadRequested = true;
         let loaded = 0;
-        let failed = 0;
 
-        function done(ok) {
+        function done() {
             loaded += 1;
-            if (!ok) failed += 1;
-            loadingText.textContent = `加载图片 ${loaded}/${CONFIG.imageCount}`;
             if (loaded < CONFIG.imageCount) return;
-
+            STATE.assetsLoaded = true;
+            setTitleLoadingBlink(false);
             rebuildPhotoCache();
-            loadingText.textContent = failed > 0 ? `有 ${failed} 张图片加载失败` : '';
-            if (failed > 0 && location.protocol === 'file:') {
-                protocolTip.style.display = 'block';
-                protocolTip.textContent = '请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网';
-            }
-            beginLoop();
+            startShow();
         }
 
         for (let i = 1; i <= CONFIG.imageCount; i++) {
             const img = new Image();
-            img.onload = () => done(true);
-            img.onerror = () => done(false);
+            img.onload = done;
+            img.onerror = done;
             img.src = `${CONFIG.imagePrefix}${i}.jpg`;
             images[i] = img;
         }
     }
 
-    function rebuildPhotoCache() {
-        const baseR = STATE.minDim * 0.26;
+    function buildPhotoCacheItem(index) {
+        const img = images[index];
+        if (!img || !img.complete || img.naturalWidth === 0) {
+            photoCache[index] = null;
+            return;
+        }
+
+        const baseR = STATE.minDim * 0.24;
         const size = baseR * 2 + 4;
 
-        for (let i = 1; i <= CONFIG.imageCount; i++) {
-            const img = images[i];
-            if (!img || !img.complete || img.naturalWidth === 0) {
-                photoCache[i] = null;
-                continue;
-            }
-
-            const off = document.createElement('canvas');
-            off.width = Math.ceil(size * STATE.dpr);
-            off.height = Math.ceil(size * STATE.dpr);
-            const g = off.getContext('2d');
-            if (!g) {
-                photoCache[i] = null;
-                continue;
-            }
-
-            g.setTransform(1, 0, 0, 1, 0, 0);
-            g.scale(STATE.dpr, STATE.dpr);
-            const cx = size * 0.5;
-            const cy = size * 0.5;
-
-            g.save();
-            g.beginPath();
-            g.arc(cx, cy, baseR, 0, Math.PI * 2);
-            g.clip();
-
-            const ir = img.naturalWidth / img.naturalHeight;
-            let dw;
-            let dh;
-            if (ir >= 1) {
-                dh = baseR * 2;
-                dw = dh * ir;
-            } else {
-                dw = baseR * 2;
-                dh = dw / ir;
-            }
-            g.drawImage(img, cx - dw * 0.5, cy - dh * 0.5, dw, dh);
-
-            const featherInner = baseR * (1 - CONFIG.featherRatio);
-            const mask = g.createRadialGradient(cx, cy, featherInner, cx, cy, baseR);
-            mask.addColorStop(0, 'rgba(255,255,255,1)');
-            mask.addColorStop(1, 'rgba(255,255,255,0)');
-            g.globalCompositeOperation = 'destination-in';
-            g.fillStyle = mask;
-            g.beginPath();
-            g.arc(cx, cy, baseR, 0, Math.PI * 2);
-            g.fill();
-            g.restore();
-
-            photoCache[i] = off;
+        const off = document.createElement('canvas');
+        off.width = Math.ceil(size * STATE.dpr);
+        off.height = Math.ceil(size * STATE.dpr);
+        const g = off.getContext('2d');
+        if (!g) {
+            photoCache[index] = null;
+            return;
         }
+
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.setTransform(STATE.dpr, 0, 0, STATE.dpr, 0, 0);
+
+        const cx = size * 0.5;
+        const cy = size * 0.5;
+
+        g.save();
+        g.beginPath();
+        g.arc(cx, cy, baseR, 0, Math.PI * 2);
+        g.clip();
+
+        const ir = img.naturalWidth / img.naturalHeight;
+        let dw;
+        let dh;
+        if (ir >= 1) {
+            dh = baseR * 2;
+            dw = dh * ir;
+        } else {
+            dw = baseR * 2;
+            dh = dw / ir;
+        }
+        g.drawImage(img, cx - dw * 0.5, cy - dh * 0.5, dw, dh);
+
+        const featherInner = baseR * (1 - CONFIG.featherRatio);
+        const mask = g.createRadialGradient(cx, cy, featherInner, cx, cy, baseR);
+        mask.addColorStop(0, 'rgba(255,255,255,1)');
+        mask.addColorStop(1, 'rgba(255,255,255,0)');
+        g.globalCompositeOperation = 'destination-in';
+        g.fillStyle = mask;
+        g.beginPath();
+        g.arc(cx, cy, baseR, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+
+        photoCache[index] = off;
     }
 
-    function beginLoop() {
-        STATE.running = true;
-        STATE.phase = CONFIG.phase.photoShow;
-        STATE.mainImageIndex = 1;
-        STATE.finalePendingAt = 0;
+    function rebuildPhotoCache() {
+        if (STATE.phase === CONFIG.phase.finale) return;
 
-        const n = nowMs();
-        lastTs = n;
-        STATE.nextPhotoLaunchAt = n + 300;
-        scheduleNextMini(n);
+        photoCacheBuildToken += 1;
+        const token = photoCacheBuildToken;
+        if (photoCacheBuildRaf) {
+            cancelAnimationFrame(photoCacheBuildRaf);
+            photoCacheBuildRaf = 0;
+        }
 
-        requestAnimationFrame(loop);
+        const indices = [];
+        for (let i = 1; i <= CONFIG.imageCount; i++) indices.push(i);
+
+        const batchSize = (isMobile || isWeChat) ? 1 : 2;
+        const step = () => {
+            if (token !== photoCacheBuildToken) return;
+            if (STATE.phase === CONFIG.phase.finale) {
+                photoCacheBuildRaf = 0;
+                return;
+            }
+
+            for (let i = 0; i < batchSize && indices.length > 0; i++) {
+                const idx = indices.shift();
+                buildPhotoCacheItem(idx);
+            }
+
+            if (indices.length > 0) {
+                photoCacheBuildRaf = requestAnimationFrame(step);
+            } else {
+                photoCacheBuildRaf = 0;
+            }
+        };
+
+        photoCacheBuildRaf = requestAnimationFrame(step);
     }
 
     function pushDt(dt) {
@@ -1034,33 +1293,40 @@
     }
 
     function updateQuality() {
-        if (!STATE.lowPowerMode) {
-            if (STATE.avgDt > CONFIG.lowEnterDt || STATE.fps < CONFIG.lowEnterFps) {
-                STATE.lowPowerMode = true;
-                STATE.recoverCounter = 0;
-                applyViewportSize();
-            }
+        let target = 1;
+        if (STATE.avgDt > 24 || STATE.fps < 38) target = 0.58;
+        else if (STATE.avgDt > 20 || STATE.fps < 44) target = 0.72;
+        else if (STATE.avgDt > 17 || STATE.fps < 52) target = 0.86;
+
+        STATE.targetQualityScale = target;
+        STATE.qualityScale += (STATE.targetQualityScale - STATE.qualityScale) * 0.08;
+        STATE.qualityScale = Math.max(0.55, Math.min(1, STATE.qualityScale));
+
+        const shouldLow = STATE.qualityScale < 0.8;
+        if (shouldLow && !STATE.lowPowerMode) {
+            STATE.lowPowerMode = true;
+            STATE.recoverCounter = 0;
+            applyViewportSize();
             return;
         }
 
-        if (STATE.avgDt < CONFIG.highExitDt) {
-            STATE.recoverCounter += 1;
-            if (STATE.recoverCounter >= CONFIG.highRecoverFrames) {
-                STATE.lowPowerMode = false;
+        if (!shouldLow && STATE.lowPowerMode) {
+            if (STATE.avgDt < CONFIG.highExitDt && STATE.fps > CONFIG.highExitFps) {
+                STATE.recoverCounter += 1;
+                if (STATE.recoverCounter >= CONFIG.highRecoverFrames) {
+                    STATE.lowPowerMode = false;
+                    STATE.recoverCounter = 0;
+                    applyViewportSize();
+                }
+            } else {
                 STATE.recoverCounter = 0;
-                applyViewportSize();
             }
-        } else {
-            STATE.recoverCounter = 0;
         }
     }
 
     function updateEntities(dt, now) {
-        if (STATE.phase === CONFIG.phase.photoShow) {
-            updatePhotoShow(now);
-        } else {
-            updateFinale(now);
-        }
+        if (STATE.phase === CONFIG.phase.photoShow) updatePhotoShow(now);
+        else updateFinale(now);
 
         for (let i = rockets.length - 1; i >= 0; i--) {
             rockets[i].update(dt);
@@ -1085,9 +1351,12 @@
 
     function drawBackgroundFog(now) {
         if (STATE.phase !== CONFIG.phase.finale) return;
+        if (STATE.lowPowerMode) return;
+        if ((isMobile || isWeChat) && now < STATE.nextFogAt) return;
+        if (isMobile || isWeChat) STATE.nextFogAt = now + 85;
 
         const t = now * 0.001;
-        const alpha = STATE.lowPowerMode ? 0.045 : 0.06;
+        const alpha = (isMobile || isWeChat) ? 0.045 : 0.058;
         const x = STATE.width * (0.5 + Math.sin(t * 0.17) * 0.18);
         const y = STATE.height * 0.45;
         const r = STATE.minDim * 0.72;
@@ -1102,10 +1371,12 @@
     }
 
     function draw(now) {
+        drawState.stroke = '';
+        drawState.fill = '';
+
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
-
         const clearA = STATE.lowPowerMode ? CONFIG.clearAlphaLow : CONFIG.clearAlphaHigh;
         ctx.fillStyle = `rgba(0,0,0,${clearA})`;
         ctx.fillRect(0, 0, STATE.width, STATE.height);
@@ -1120,13 +1391,18 @@
             if (b > maxBlur) maxBlur = b;
         }
 
+        // lighter 仅用于烟花粒子段
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
+        const mobileHeavy = (isMobile || isWeChat) && (STATE.lowPowerMode || STATE.fps < 50);
+        ctx.globalCompositeOperation = mobileHeavy ? 'source-over' : 'lighter';
         if (maxBlur > 0) {
-            ctx.shadowBlur = maxBlur;
+            let blur = maxBlur;
+            if (isMobile || isWeChat) blur = Math.min(2, blur);
+            if (STATE.lowPowerMode || STATE.fps < 50) blur = 0;
+            ctx.shadowBlur = blur;
             ctx.shadowColor = STATE.phase === CONFIG.phase.finale
-                ? 'rgba(255,220,170,0.95)'
-                : 'rgba(180,220,255,0.95)';
+                ? 'rgba(255,220,170,0.9)'
+                : 'rgba(180,220,255,0.9)';
         } else {
             ctx.shadowBlur = 0;
         }
@@ -1135,13 +1411,19 @@
             activeParticles[i].draw(ctx);
         }
 
+        const flashLite = isMobile || isWeChat;
+        const flashMax = flashLite ? ((STATE.lowPowerMode || STATE.fps < 50) ? 2 : 4) : bursts.length;
+        let flashCount = 0;
         for (let i = 0; i < bursts.length; i++) {
-            bursts[i].drawCenterFlash(ctx);
+            if (flashCount >= flashMax) break;
+            bursts[i].drawCenterFlash(ctx, flashLite);
+            flashCount += 1;
         }
         ctx.restore();
 
         if (STATE.phase === CONFIG.phase.photoShow) {
             ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
             for (let i = 0; i < photoOverlays.length; i++) {
                 photoOverlays[i].draw(ctx);
             }
@@ -1162,14 +1444,16 @@
             `particles: ${activeParticles.length}\n` +
             `phase: ${STATE.phase}\n` +
             `dpr: ${STATE.dpr.toFixed(2)}\n` +
-            `mode: ${STATE.lowPowerMode ? 'LowPower' : 'Normal'}`;
+            `mode: ${STATE.lowPowerMode ? 'LowPower' : 'Normal'}\n` +
+            `q: ${STATE.qualityScale.toFixed(2)}`;
     }
 
     function loop(ts) {
         if (!STATE.running) return;
-        requestAnimationFrame(loop);
+        rafId = requestAnimationFrame(loop);
 
-        const dt = Math.min(50, Math.max(8, ts - lastTs));
+        const elapsed = ts - lastTs;
+        const dt = elapsed > 120 ? 16.67 : Math.min(40, Math.max(8, elapsed));
         lastTs = ts;
 
         pushDt(dt);
@@ -1178,7 +1462,6 @@
 
         if (STATE.phase === CONFIG.phase.finale && CONFIG.finaleEndMode === 'fadeout' && STATE.finaleFading) {
             if (ts - STATE.finaleFadeStart > CONFIG.finaleFadeoutMs) {
-                // 停止发射，仅等待余粒子自然消散
                 STATE.nextFinaleVolleyAt = Infinity;
             }
         }
@@ -1187,39 +1470,88 @@
         updateDebug();
     }
 
-    function handleStartGesture() {
+    function startShow() {
         if (STATE.running) return;
+        STATE.running = true;
+        STATE.phase = CONFIG.phase.photoShow;
+        STATE.mainImageIndex = 1;
+        STATE.finalePendingAt = 0;
 
-        if (location.protocol === 'file:') {
-            protocolTip.style.display = 'block';
-            protocolTip.textContent = '请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网';
-        }
+        const n = nowMs();
+        lastTs = n;
+        STATE.nextPhotoLaunchAt = n + 250;
+        scheduleNextMini(n);
 
-        startOverlay.style.display = 'none';
-        loadingText.textContent = '正在加载图片...';
-        loadImagesThenStart();
+        startOverlay.classList.add('hide');
+        setTimeout(() => {
+            startOverlay.style.display = 'none';
+        }, 850);
+
+        rafId = requestAnimationFrame(loop);
     }
 
-    function bindStartGestures() {
-        document.addEventListener('touchstart', handleStartGesture, { passive: true, once: true });
-        document.addEventListener('click', handleStartGesture, { passive: true, once: true });
+    function bindVisibilityPause() {
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                STATE.pausedByVisibility = true;
+                if (STATE.running && rafId) {
+                    cancelAnimationFrame(rafId);
+                    rafId = 0;
+                }
+                return;
+            }
+
+            if (STATE.pausedByVisibility && STATE.running) {
+                STATE.pausedByVisibility = false;
+                lastTs = nowMs();
+                if (!rafId) rafId = requestAnimationFrame(loop);
+            }
+        });
     }
 
     function bindResize() {
-        window.addEventListener('resize', applyViewportSize, { passive: true });
-        window.addEventListener('orientationchange', applyViewportSize, { passive: true });
+        const onResize = () => {
+            if (resizeRaf) return;
+            resizeRaf = requestAnimationFrame(() => {
+                resizeRaf = 0;
+                applyViewportSize();
+            });
+        };
+        window.addEventListener('resize', onResize, { passive: true });
+        window.addEventListener('orientationchange', onResize, { passive: true });
         if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', applyViewportSize, { passive: true });
+            window.visualViewport.addEventListener('resize', onResize, { passive: true });
         }
     }
 
+    function ensureStarted() {
+        if (!STATE.loadRequested) {
+            setTitleLoadingBlink(true);
+            loadImagesThenStart();
+            return;
+        }
+        if (STATE.assetsLoaded && !STATE.running) startShow();
+    }
+
+    function bindStartFallback() {
+        const onceStart = () => ensureStarted();
+        document.addEventListener('touchstart', onceStart, { passive: true, once: true });
+        document.addEventListener('click', onceStart, { passive: true, once: true });
+    }
+
     function bindDebugToggle() {
+        if (!debugEnabled) {
+            debugToggle.style.display = 'none';
+            debugPanel.style.display = 'none';
+            return;
+        }
+
+        debugToggle.style.display = 'block';
         const toggle = () => {
             debugOn = !debugOn;
             debugToggle.textContent = debugOn ? 'Debug: On' : 'Debug: Off';
             debugPanel.style.display = debugOn ? 'block' : 'none';
         };
-
         debugToggle.addEventListener('touchstart', toggle, { passive: true });
         debugToggle.addEventListener('click', toggle, { passive: true });
     }
@@ -1227,13 +1559,12 @@
     function init() {
         applyViewportSize();
         bindResize();
-        bindStartGestures();
         bindDebugToggle();
+        bindVisibilityPause();
+        bindStartFallback();
 
-        if (location.protocol === 'file:') {
-            protocolTip.style.display = 'block';
-            protocolTip.textContent = '请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网';
-        }
+        setTitleLoadingBlink(true);
+        ensureStarted();
     }
 
     init();
