@@ -339,7 +339,7 @@
         imagePrefix: './picture/',
         backgroundMusicPath: './music/1.mp3',
         backgroundMusicVolume: 0.34,
-        introHoldExtraMs: 2000,
+        introHoldExtraMs: 1000,
 
         phase: {
             photoShow: 'photoShow',
@@ -425,7 +425,7 @@
         finaleBurstCountForce60: [34, 56],
         finaleParticleCapForce60: 150,
         finaleParticleFrameSkipForce60: 2,
-        finaleGreetingText: 'XYT新年快乐！！！马年顺遂！！！'
+        finaleGreetingText: 'XYT新年快乐！！！\n马年顺遂！！！'
     };
 
     const ua = navigator.userAgent || '';
@@ -826,9 +826,15 @@
         if (!STATE.finaleGreetingShown) return;
         const text = CONFIG.finaleGreetingText;
         if (!text) return;
+        const lines = String(text).split('\n').filter(Boolean);
+        if (lines.length === 0) return;
 
         const pulse = 0.92 + Math.sin(now * 0.0038) * 0.08;
         const fontSize = Math.max(34, Math.min(72, Math.round(STATE.minDim * 0.075)));
+        const lineGap = Math.round(fontSize * 0.34);
+        const lineHeight = fontSize + lineGap;
+        const totalHeight = lineHeight * (lines.length - 1);
+        let y = STATE.height * 0.5 - totalHeight * 0.5;
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
@@ -838,7 +844,10 @@
         ctx.fillStyle = '#ffe7a8';
         ctx.shadowBlur = 20 * pulse;
         ctx.shadowColor = 'rgba(255,215,130,0.75)';
-        ctx.fillText(text, STATE.width * 0.5, STATE.height * 0.5);
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], STATE.width * 0.5, y);
+            y += lineHeight;
+        }
         ctx.restore();
     }
 
