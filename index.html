@@ -337,9 +337,6 @@
         force60Mode: true,
         imageCount: 15,
         imagePrefix: './picture/',
-        backgroundMusicPath: './music/1.mp3',
-        backgroundMusicVolume: 0.34,
-        introHoldExtraMs: 0,
 
         phase: {
             photoShow: 'photoShow',
@@ -419,13 +416,13 @@
         clearAlphaLow: 0.22,
 
         finaleDelayAfterLastBurst: [1500, 2500],
-        finaleHoldMs: 15000,
+        finaleHoldMs: 12000,
         finaleVolleyIntervalForce60: [900, 1400],
         finaleVolleyCountRangeForce60: [1, 2],
         finaleBurstCountForce60: [34, 56],
         finaleParticleCapForce60: 150,
         finaleParticleFrameSkipForce60: 2,
-        finaleGreetingText: 'XYT新年快乐！！！\n马年顺遂！！！'
+        finaleGreetingText: 'XYT新年快乐！！！马年顺遂！！！'
     };
 
     const ua = navigator.userAgent || '';
@@ -463,8 +460,7 @@
         finaleFading: false,
         finaleFadeStart: 0,
         finaleGreetingShown: false,
-        finaleGreetingStart: 0,
-        startScheduled: false
+        finaleGreetingStart: 0
     };
 
     const canvas = document.getElementById('canvas');
@@ -523,8 +519,6 @@
         stroke: '',
         fill: ''
     };
-    let bgMusic = null;
-    let bgMusicStarted = false;
 
     const photoHaloCache = new Map();
     const photoRingCache = new Map();
@@ -537,7 +531,6 @@
     const spawnTasks = [];
     let spawnBudget = Infinity;
     let frameTick = 0;
-    let startDelayTimer = 0;
 
     if (isMobile || isWeChat) {
         CONFIG.maxParticlesPhotoHigh = 460;
@@ -566,39 +559,6 @@
 
     function nowMs() {
         return performance.now();
-    }
-
-    function initBackgroundMusic() {
-        if (bgMusic) return bgMusic;
-        const audio = new Audio(CONFIG.backgroundMusicPath);
-        audio.loop = true;
-        audio.preload = 'auto';
-        audio.volume = CONFIG.backgroundMusicVolume;
-        try {
-            audio.playsInline = true;
-            audio.setAttribute('playsinline', '');
-            audio.setAttribute('webkit-playsinline', '');
-        } catch (e) {
-            // Ignore unsupported inline attributes.
-        }
-        bgMusic = audio;
-        return bgMusic;
-    }
-
-    function playBackgroundMusic() {
-        const audio = initBackgroundMusic();
-        if (!audio) return;
-        if (bgMusicStarted && !audio.paused) return;
-        const p = audio.play();
-        if (p && typeof p.then === 'function') {
-            p.then(() => {
-                bgMusicStarted = true;
-            }).catch(() => {
-                // Auto-play may be blocked until user gesture.
-            });
-            return;
-        }
-        bgMusicStarted = true;
     }
 
     function setTitleLoadingBlink(isLoading) {
@@ -826,15 +786,9 @@
         if (!STATE.finaleGreetingShown) return;
         const text = CONFIG.finaleGreetingText;
         if (!text) return;
-        const lines = String(text).split('\n').filter(Boolean);
-        if (lines.length === 0) return;
 
         const pulse = 0.92 + Math.sin(now * 0.0038) * 0.08;
         const fontSize = Math.max(34, Math.min(72, Math.round(STATE.minDim * 0.075)));
-        const lineGap = Math.round(fontSize * 0.34);
-        const lineHeight = fontSize + lineGap;
-        const totalHeight = lineHeight * (lines.length - 1);
-        let y = STATE.height * 0.5 - totalHeight * 0.5;
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
@@ -844,10 +798,7 @@
         ctx.fillStyle = '#ffe7a8';
         ctx.shadowBlur = 20 * pulse;
         ctx.shadowColor = 'rgba(255,215,130,0.75)';
-        for (let i = 0; i < lines.length; i++) {
-            ctx.fillText(lines[i], STATE.width * 0.5, y);
-            y += lineHeight;
-        }
+        ctx.fillText(text, STATE.width * 0.5, STATE.height * 0.5);
         ctx.restore();
     }
 
@@ -2269,7 +2220,7 @@
             STATE.assetsLoaded = true;
             setTitleLoadingBlink(false);
             rebuildPhotoCache();
-            scheduleStartShow();
+            startShow();
         }
 
         for (let i = 1; i <= CONFIG.imageCount; i++) {
@@ -2652,11 +2603,6 @@
 
     function startShow() {
         if (STATE.running) return;
-        if (startDelayTimer) {
-            clearTimeout(startDelayTimer);
-            startDelayTimer = 0;
-        }
-        STATE.startScheduled = false;
         STATE.running = true;
         STATE.phase = CONFIG.phase.photoShow;
         STATE.mainImageIndex = 1;
@@ -2678,21 +2624,6 @@
         rafId = requestAnimationFrame(loop);
     }
 
-    function scheduleStartShow() {
-        if (STATE.running || STATE.startScheduled) return;
-        const waitMs = Math.max(0, CONFIG.introHoldExtraMs | 0);
-        if (waitMs <= 0) {
-            startShow();
-            return;
-        }
-        STATE.startScheduled = true;
-        startDelayTimer = window.setTimeout(() => {
-            startDelayTimer = 0;
-            STATE.startScheduled = false;
-            if (!STATE.running) startShow();
-        }, waitMs);
-    }
-
     function bindVisibilityPause() {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -2700,9 +2631,6 @@
                 if (STATE.running && rafId) {
                     cancelAnimationFrame(rafId);
                     rafId = 0;
-                }
-                if (bgMusic && !bgMusic.paused) {
-                    bgMusic.pause();
                 }
                 return;
             }
@@ -2712,7 +2640,6 @@
                 lastTs = nowMs();
                 if (!rafId) rafId = requestAnimationFrame(loop);
             }
-            playBackgroundMusic();
         });
     }
 
@@ -2743,14 +2670,11 @@
             loadImagesThenStart();
             return;
         }
-        if (STATE.assetsLoaded && !STATE.running) scheduleStartShow();
+        if (STATE.assetsLoaded && !STATE.running) startShow();
     }
 
     function bindStartFallback() {
-        const onceStart = () => {
-            playBackgroundMusic();
-            ensureStarted();
-        };
+        const onceStart = () => ensureStarted();
         document.addEventListener('touchstart', onceStart, { passive: true, once: true });
         document.addEventListener('click', onceStart, { passive: true, once: true });
     }
@@ -2778,10 +2702,6 @@
         bindDebugToggle();
         bindVisibilityPause();
         bindStartFallback();
-        if (isWeChat) {
-            document.addEventListener('WeixinJSBridgeReady', playBackgroundMusic, false);
-        }
-        playBackgroundMusic();
 
         setTitleLoadingBlink(true);
         ensureStarted();
