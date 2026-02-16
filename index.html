@@ -339,6 +339,9 @@
         imagePrefix: './picture/',
         backgroundMusicPath: './music/1.mp3',
         backgroundMusicVolume: 0.34,
+        backgroundMusicStartDelayMs: 1200,
+        imageLoadMaxWaitMs: 3200,
+        imagePerFileTimeoutMs: 1800,
         introHoldExtraMs: 0,
 
         phase: {
@@ -572,7 +575,7 @@
         if (bgMusic) return bgMusic;
         const audio = new Audio(CONFIG.backgroundMusicPath);
         audio.loop = true;
-        audio.preload = 'auto';
+        audio.preload = (isMobile || isWeChat) ? 'metadata' : 'auto';
         audio.volume = CONFIG.backgroundMusicVolume;
         try {
             audio.playsInline = true;
@@ -588,6 +591,7 @@
     function playBackgroundMusic() {
         const audio = initBackgroundMusic();
         if (!audio) return;
+        if (document.hidden) return;
         if (bgMusicStarted && !audio.paused) return;
         const p = audio.play();
         if (p && typeof p.then === 'function') {
@@ -2243,6 +2247,7 @@
         }
 
         fitLoadingTitles();
+        if (!STATE.running && !force) return;
 
         const dprChanged = Math.abs(STATE.dpr - prevDpr) > 0.02;
         const minDimChanged = prevMinDim > 0
@@ -2261,21 +2266,53 @@
     function loadImagesThenStart() {
         if (STATE.loadRequested) return;
         STATE.loadRequested = true;
+        let finished = false;
         let loaded = 0;
+        const fileTimers = new Array(CONFIG.imageCount + 1);
+        let hardTimer = 0;
 
-        function done() {
-            loaded += 1;
-            if (loaded < CONFIG.imageCount) return;
+        function finalizeStart() {
+            if (finished) return;
+            finished = true;
+            if (hardTimer) {
+                clearTimeout(hardTimer);
+                hardTimer = 0;
+            }
+            for (let i = 1; i <= CONFIG.imageCount; i++) {
+                if (fileTimers[i]) {
+                    clearTimeout(fileTimers[i]);
+                    fileTimers[i] = 0;
+                }
+            }
             STATE.assetsLoaded = true;
             setTitleLoadingBlink(false);
-            rebuildPhotoCache();
             scheduleStartShow();
+            requestAnimationFrame(() => {
+                if (STATE.phase !== CONFIG.phase.finale) rebuildPhotoCache();
+            });
         }
+
+        function done(index) {
+            if (finished) return;
+            const img = images[index];
+            if (!img || img.__done) return;
+            img.__done = true;
+            if (fileTimers[index]) {
+                clearTimeout(fileTimers[index]);
+                fileTimers[index] = 0;
+            }
+            loaded += 1;
+            if (loaded >= CONFIG.imageCount) finalizeStart();
+        }
+
+        hardTimer = window.setTimeout(finalizeStart, CONFIG.imageLoadMaxWaitMs);
 
         for (let i = 1; i <= CONFIG.imageCount; i++) {
             const img = new Image();
-            img.onload = done;
-            img.onerror = done;
+            img.__done = false;
+            img.onload = () => done(i);
+            img.onerror = () => done(i);
+            fileTimers[i] = window.setTimeout(() => done(i), CONFIG.imagePerFileTimeoutMs);
             img.src = `${CONFIG.imagePrefix}${i}.jpg`;
             images[i] = img;
         }
@@ -2732,7 +2769,7 @@
         };
         window.addEventListener('resize', onResize, { passive: true });
         window.addEventListener('orientationchange', onResize, { passive: true });
-        if (window.visualViewport) {
+        if (window.visualViewport && !isWeChat) {
             window.visualViewport.addEventListener('resize', onResize, { passive: true });
         }
     }
@@ -2778,13 +2815,19 @@
         bindDebugToggle();
         bindVisibilityPause();
         bindStartFallback();
-        if (isWeChat) {
-            document.addEventListener('WeixinJSBridgeReady', playBackgroundMusic, false);
-        }
-        playBackgroundMusic();
 
         setTitleLoadingBlink(true);
         ensureStarted();
+
+        if (isWeChat) {
+            document.addEventListener('WeixinJSBridgeReady', playBackgroundMusic, false);
+        }
+        const delayMs = (isMobile || isWeChat) ? CONFIG.backgroundMusicStartDelayMs : 0;
+        if (delayMs > 0) {
+            window.setTimeout(playBackgroundMusic, delayMs);
+        } else {
+            playBackgroundMusic();
+        }
     }
 
     init();
