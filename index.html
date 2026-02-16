@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>新年烟花</title>
+    <style>
+        html, body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+            background: #07070a;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+        }
+
+        #app {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            background:
+                radial-gradient(120% 120% at 50% 100%, rgba(170, 20, 20, 0.18) 0%, rgba(18, 12, 22, 0.42) 52%, rgba(7, 7, 10, 0.96) 100%),
+                linear-gradient(180deg, #120913 0%, #09070d 100%);
+        }
+
+        #canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #startOverlay {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.68);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #fff;
+            text-align: center;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        .festive-wrap {
+            position: relative;
+            width: min(92vw, 760px);
+            padding: 18px 16px 20px;
+            border-radius: 16px;
+            background: radial-gradient(circle at 50% 35%, rgba(120, 20, 20, 0.45) 0%, rgba(35, 8, 10, 0.55) 75%, rgba(0, 0, 0, 0.2) 100%);
+            border: 1px solid rgba(255, 220, 140, 0.18);
+        }
+
+        .gold-word {
+            text-align: center;
+            font-family: "STKaiti", "KaiTi", "SimSun", serif;
+            font-weight: 900;
+            line-height: 1.18;
+            letter-spacing: 0.12em;
+            margin: 0;
+            background: linear-gradient(135deg, #bf953f 0%, #fcf6ba 25%, #b38728 50%, #fbf5b7 75%, #aa771c 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.7));
+            animation: shine 4s linear infinite;
+        }
+
+        .gold-word.main {
+            font-size: clamp(36px, 8vw, 64px);
+            margin-top: 2px;
+        }
+
+        .gold-word.subline {
+            font-size: clamp(30px, 7vw, 54px);
+            margin-top: 4px;
+        }
+
+        .fu-decoration {
+            position: absolute;
+            top: 14px;
+            width: 1.5em;
+            height: 1.5em;
+            font-family: "STKaiti", "KaiTi", serif;
+            font-size: clamp(30px, 6vw, 50px);
+            color: #ffd700;
+            background: #aa0000;
+            border: 2px solid #ffd700;
+            transform: rotate(45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+        }
+
+        .fu-decoration span {
+            transform: rotate(-45deg);
+            font-weight: 700;
+            margin-top: 0.05em;
+        }
+
+        .fu-left { left: 14px; }
+        .fu-right { right: 14px; }
+
+        .horse-decoration {
+            position: absolute;
+            bottom: 12px;
+            font-size: clamp(30px, 6vw, 48px);
+            filter: drop-shadow(0 0 4px rgba(255,215,0,0.55));
+            opacity: 0.95;
+        }
+
+        .horse-left {
+            left: 18px;
+            transform: scaleX(-1);
+        }
+
+        .horse-right {
+            right: 18px;
+        }
+
+        @keyframes shine {
+            to { background-position: 200% center; }
+        }
+
+        #startOverlay .title {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        #startOverlay .sub {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.82);
+            line-height: 1.6;
+            max-width: 520px;
+        }
+
+        #protocolTip {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #ffd8aa;
+            line-height: 1.5;
+            display: none;
+        }
+
+        #debugToggle {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            z-index: 20;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
+            padding: 3px 6px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #debugPanel {
+            position: absolute;
+            right: 8px;
+            top: 34px;
+            z-index: 20;
+            display: none;
+            color: #d8eaff;
+            font-size: 11px;
+            line-height: 1.45;
+            padding: 6px 8px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            white-space: pre;
+            pointer-events: none;
+        }
+
+        #loadingText {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 12px;
+            z-index: 12;
+            color: rgba(255, 255, 255, 0.88);
+            font-size: 12px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <canvas id="canvas"></canvas>
+
+    <div id="startOverlay">
+        <div class="festive-wrap">
+            <div class="fu-decoration fu-left"><span>福</span></div>
+            <div class="fu-decoration fu-right"><span>福</span></div>
+            <div class="horse-decoration horse-left">🐎</div>
+            <div class="horse-decoration horse-right">🐎</div>
+
+            <p class="gold-word main">新年快乐</p>
+            <p class="gold-word subline">马年大吉</p>
+
+            <div class="title">点击开始烟花</div>
+            <div class="sub">15 张照片烟花播放完成后将自动进入 Finale 满屏庆典烟花。</div>
+        </div>
+        <div id="protocolTip">请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网</div>
+    </div>
+
+    <div id="debugToggle">Debug: Off</div>
+    <div id="debugPanel"></div>
+    <div id="loadingText"></div>
+</div>
+
+<script>
+/*
+ * WeChat compatibility notes
+ * 1) 仅使用 Canvas 2D，不依赖 OffscreenCanvas / WebGL。
+ * 2) getContext('2d', {alpha:false}) 失败时自动回退 getContext('2d')。
+ * 3) 微信/移动端必须用户手势启动：touchstart + click 触发启动。
+ * 4) 资源路径使用相对路径 ./picture/1.jpg ~ ./picture/15.jpg。
+ * 5) 若 file:// 打开导致图片不可读，显示清晰提示文案。
+ */
+
+(() => {
+    const CONFIG = {
+        imageCount: 15,
+        imagePrefix: './picture/',
+
+        phase: {
+            photoShow: 'photoShow',
+            finale: 'finale'
+        },
+
+        // Photo show（15张）
+        photoGapMs: [2200, 3200],
+        photoTargetX: [0.20, 0.80],
+        photoTargetY: [0.12, 0.40],
+        photoBurstRadiusHigh: [0.38, 0.48],
+        photoBurstRadiusLow: [0.30, 0.40],
+        photoStreakCountHigh: [360, 520],
+        photoStreakCountLow: [240, 360],
+
+        // 火箭 & 线束
+        streakSpeedFactor: [0.010, 0.018],
+        streakWidth: [1.0, 2.4],
+        streakLifeMs: [900, 1650],
+        rocketTrailPerFrame: 3,
+
+        // 中心亮核与发光
+        shadowBlurStrong: [18, 26],
+        shadowBlurWeak: [6, 10],
+        shadowStrongFrames: 6,
+        shadowTotalFrames: 12,
+        centerFlashRadiusRatio: 0.25,
+
+        // 照片融合
+        photoDelayMs: [120, 200],
+        photoFadeInMs: 260,
+        photoHoldMs: 1500,
+        photoFadeOutMs: 700,
+        photoDiameterRatio: [0.38, 0.50],
+        haloDiameterRatio: [0.55, 0.70],
+        featherRatio: 0.18,
+
+        // 小烟花（两阶段都用）
+        miniGapHigh: [850, 1400],
+        miniGapLow: [1300, 2200],
+        miniTargetX: [0.10, 0.90],
+        miniTargetY: [0.12, 0.55],
+        miniBurstCountHigh: [16, 30],
+        miniBurstCountLow: [9, 18],
+        miniLifeMs: [800, 1600],
+        miniSpeed: [70, 180],
+
+        // Finale
+        finaleDuration: [12000, 18000],
+        finaleVolleyInterval: [500, 900],
+        finaleVolleyCountRange: [3, 7],
+        finaleBurstRadius: [0.30, 0.55],
+        finaleTargetX: [0.10, 0.90],
+        finaleTargetY: [0.08, 0.55],
+        finaleStreakCountHigh: [300, 460],
+        finaleStreakCountLow: [190, 300],
+        finaleColorPalette: ['#ffefb0', '#ffd676', '#ffb45e', '#ff944f', '#ff6c52', '#fff7df'],
+        finaleEndMode: 'loop', // 'fadeout' | 'loop'
+        finaleFadeoutMs: 5000,
+
+        // 性能
+        maxParticlesPhotoHigh: 900,
+        maxParticlesPhotoLow: 560,
+        maxParticlesFinaleHigh: 1400,
+        maxParticlesFinaleLow: 900,
+        dtWindowSize: 30,
+        lowEnterFps: 45,
+        lowEnterDt: 22,
+        highExitDt: 16,
+        highRecoverFrames: 60,
+
+        // 渲染
+        dprHighCap: 2,
+        dprLowCap: 1.25,
+        clearAlphaHigh: 0.16,
+        clearAlphaLow: 0.22,
+
+        // 切 finale 时机：最后一张爆炸后延时
+        finaleDelayAfterLastBurst: [1500, 2500]
+    };
+
+    const STATE = {
+        phase: CONFIG.phase.photoShow,
+        running: false,
+        lowPowerMode: false,
+        dpr: 1,
+        width: 0,
+        height: 0,
+        minDim: 0,
+        fps: 60,
+        avgDt: 16.6,
+        recoverCounter: 0,
+
+        mainImageIndex: 1,
+        nextPhotoLaunchAt: 0,
+        nextMiniLaunchAt: 0,
+
+        finaleStartedAt: 0,
+        finaleEndsAt: 0,
+        nextFinaleVolleyAt: 0,
+        finalePendingAt: 0,
+        finaleFading: false,
+        finaleFadeStart: 0
+    };
+
+    const app = document.getElementById('app');
+    const canvas = document.getElementById('canvas');
+    const startOverlay = document.getElementById('startOverlay');
+    const protocolTip = document.getElementById('protocolTip');
+    const loadingText = document.getElementById('loadingText');
+    const debugToggle = document.getElementById('debugToggle');
+    const debugPanel = document.getElementById('debugPanel');
+
+    let ctx = null;
+    try {
+        ctx = canvas.getContext('2d', { alpha: false });
+    } catch (e) {
+        ctx = null;
+    }
+    if (!ctx) ctx = canvas.getContext('2d');
+
+    const images = new Array(CONFIG.imageCount + 1);
+    const photoCache = new Array(CONFIG.imageCount + 1);
+
+    const rockets = [];       // main/finale/mini rocket
+    const bursts = [];        // burst controllers
+    const photoOverlays = []; // photo overlays (only photoShow)
+
+    const activeParticles = [];
+    const particlePool = [];
+
+    const dtRing = new Float32Array(CONFIG.dtWindowSize);
+    let dtSum = 0;
+    let dtCount = 0;
+    let dtIndex = 0;
+
+    let lastTs = 0;
+    let debugOn = false;
+
+    function rand(min, max) {
+        return min + Math.random() * (max - min);
+    }
+
+    function randInt(min, max) {
+        return Math.floor(rand(min, max + 1));
+    }
+
+    function pick(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function nowMs() {
+        return performance.now();
+    }
+
+    function currentParticleLimit() {
+        const low = STATE.lowPowerMode;
+        if (STATE.phase === CONFIG.phase.finale) {
+            return low ? CONFIG.maxParticlesFinaleLow : CONFIG.maxParticlesFinaleHigh;
+        }
+        return low ? CONFIG.maxParticlesPhotoLow : CONFIG.maxParticlesPhotoHigh;
+    }
+
+    class Particle {
+        constructor() {
+            this.active = false;
+        }
+
+        reset(opt) {
+            this.x = opt.x;
+            this.y = opt.y;
+            this.px = opt.x;
+            this.py = opt.y;
+            this.vx = opt.vx;
+            this.vy = opt.vy;
+            this.gravity = opt.gravity || 0;
+            this.drag = opt.drag || 1;
+            this.life = opt.life;
+            this.maxLife = opt.life;
+            this.color = opt.color;
+            this.width = opt.width || 1;
+            this.kind = opt.kind || 'main';
+            this.sparkle = !!opt.sparkle;
+            this.sparkColor = opt.sparkColor || '#fff';
+            this.active = true;
+        }
+
+        update(dt) {
+            const dts = dt / 1000;
+            this.px = this.x;
+            this.py = this.y;
+            this.x += this.vx * dts;
+            this.y += this.vy * dts;
+
+            this.vy += this.gravity * dts;
+            const dragPow = Math.pow(this.drag, dts * 60);
+            this.vx *= dragPow;
+            this.vy *= dragPow;
+
+            this.life -= dt;
+            if (this.life <= 0) this.active = false;
+        }
+
+        draw(g) {
+            const a = Math.max(0, this.life / this.maxLife);
+            if (a <= 0) return;
+
+            if (this.kind === 'trail' || this.kind === 'dust') {
+                g.globalAlpha = a;
+                g.fillStyle = this.color;
+                const s = this.width;
+                g.fillRect(this.x - s * 0.5, this.y - s * 0.5, s, s);
+                return;
+            }
+
+            g.globalAlpha = a;
+            g.strokeStyle = this.color;
+            g.lineWidth = this.width;
+            g.beginPath();
+            g.moveTo(this.px, this.py);
+            g.lineTo(this.x, this.y);
+            g.stroke();
+
+            if (this.sparkle && a < 0.55 && Math.random() < 0.35) {
+                g.fillStyle = this.sparkColor;
+                const s = this.kind === 'main' ? 2.2 : 1.5;
+                g.fillRect(this.x - s * 0.5, this.y - s * 0.5, s, s);
+            }
+        }
+    }
+
+    function getParticle() {
+        if (activeParticles.length >= currentParticleLimit()) return null;
+        let p = particlePool.pop();
+        if (!p) p = new Particle();
+        activeParticles.push(p);
+        return p;
+    }
+
+    function recycleParticle(i) {
+        const p = activeParticles[i];
+        const last = activeParticles.pop();
+        if (i < activeParticles.length) activeParticles[i] = last;
+        p.active = false;
+        particlePool.push(p);
+    }
+
+    class Rocket {
+        constructor(opt) {
+            this.type = opt.type; // 'main' | 'mini' | 'finale'
+            this.imageIndex = opt.imageIndex || 0;
+            this.x = opt.startX;
+            this.y = STATE.height + rand(6, 18);
+            this.tx = opt.tx;
+            this.ty = opt.ty;
+            this.done = false;
+            this.jitterT = rand(0, 999);
+
+            this.vy = -rand(560, 760);
+            const flight = Math.max(0.8, (this.y - this.ty) / Math.abs(this.vy));
+            this.vx = (this.tx - this.x) / flight;
+            this.gravity = rand(320, 460);
+        }
+
+        update(dt) {
+            const dts = dt / 1000;
+            this.jitterT += dts;
+            const side = Math.sin(this.jitterT * 16) * 0.8;
+
+            this.x += (this.vx + side) * dts;
+            this.y += this.vy * dts;
+            this.vy += this.gravity * dts;
+
+            const trailCount = this.type === 'mini' ? 1 : CONFIG.rocketTrailPerFrame;
+            for (let i = 0; i < trailCount; i++) {
+                const p = getParticle();
+                if (!p) break;
+                p.reset({
+                    x: this.x + rand(-2, 2),
+                    y: this.y + rand(-2, 2),
+                    vx: rand(-22, 22),
+                    vy: rand(25, 120),
+                    gravity: rand(140, 260),
+                    drag: 0.988,
+                    life: rand(170, 340),
+                    color: '#fff',
+                    width: rand(1.0, 2.0),
+                    kind: 'trail'
+                });
+            }
+
+            if (this.vy > -15 || this.y <= this.ty) {
+                this.done = true;
+                onRocketExplode(this);
+            }
+        }
+
+        draw(g) {
+            g.save();
+            g.globalCompositeOperation = 'lighter';
+            g.globalAlpha = 0.98;
+            g.fillStyle = '#fff';
+            g.fillRect(this.x - 1.7, this.y - 1.7, 3.4, 3.4);
+            g.restore();
+        }
+    }
+
+    class Burst {
+        constructor(opt) {
+            this.type = opt.type; // 'photo' | 'mini' | 'finale'
+            this.x = opt.x;
+            this.y = opt.y;
+            this.imageIndex = opt.imageIndex || 0;
+            this.ageMs = 0;
+            this.frameAge = 0;
+            this.dead = false;
+
+            this.radius = opt.radius;
+            this.photoDiameter = this.radius * rand(CONFIG.photoDiameterRatio[0], CONFIG.photoDiameterRatio[1]);
+            this.haloDiameter = this.radius * rand(CONFIG.haloDiameterRatio[0], CONFIG.haloDiameterRatio[1]);
+
+            this.blurStrong = rand(CONFIG.shadowBlurStrong[0], CONFIG.shadowBlurStrong[1]);
+            this.blurWeak = rand(CONFIG.shadowBlurWeak[0], CONFIG.shadowBlurWeak[1]);
+
+            this.spawnParticles(opt);
+        }
+
+        spawnParticles(opt) {
+            const colors = opt.palette;
+            const count = opt.count;
+
+            for (let i = 0; i < count; i++) {
+                const p = getParticle();
+                if (!p) break;
+
+                const a = rand(0, Math.PI * 2);
+                const speedPf = this.radius * rand(CONFIG.streakSpeedFactor[0], CONFIG.streakSpeedFactor[1]);
+                const speed = speedPf * 60;
+                p.reset({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(a) * speed,
+                    vy: Math.sin(a) * speed,
+                    gravity: rand(60, 150),
+                    drag: rand(0.985, 0.993),
+                    life: rand(CONFIG.streakLifeMs[0], CONFIG.streakLifeMs[1]),
+                    color: pick(colors),
+                    width: rand(CONFIG.streakWidth[0], CONFIG.streakWidth[1]),
+                    kind: opt.kind || 'main',
+                    sparkle: true,
+                    sparkColor: '#fff8e5'
+                });
+            }
+
+            const core = this.type === 'mini' ? 8 : (this.type === 'finale' ? 44 : 58);
+            for (let i = 0; i < core; i++) {
+                const p = getParticle();
+                if (!p) break;
+                const a = rand(0, Math.PI * 2);
+                const v = this.radius * rand(0.004, 0.008) * 60;
+                p.reset({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(a) * v,
+                    vy: Math.sin(a) * v,
+                    gravity: rand(40, 100),
+                    drag: rand(0.986, 0.994),
+                    life: rand(360, 760),
+                    color: '#fff6d8',
+                    width: rand(1.0, 2.0),
+                    kind: 'trail'
+                });
+            }
+        }
+
+        update(dt) {
+            this.ageMs += dt;
+            this.frameAge += dt / (1000 / 60);
+            if (this.ageMs > 1850) this.dead = true;
+        }
+
+        blur() {
+            if (this.frameAge <= CONFIG.shadowStrongFrames) return this.blurStrong;
+            if (this.frameAge <= CONFIG.shadowTotalFrames) return this.blurWeak;
+            return 0;
+        }
+
+        drawCenterFlash(g) {
+            if (this.frameAge > CONFIG.shadowTotalFrames) return;
+            const fr = this.radius * CONFIG.centerFlashRadiusRatio;
+            const grad = g.createRadialGradient(this.x, this.y, 0, this.x, this.y, fr);
+            grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+            grad.addColorStop(0.35, 'rgba(255,235,200,0.55)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            g.fillStyle = grad;
+            g.beginPath();
+            g.arc(this.x, this.y, fr, 0, Math.PI * 2);
+            g.fill();
+        }
+    }
+
+    class PhotoOverlay {
+        constructor(opt) {
+            this.imageIndex = opt.imageIndex;
+            this.x = opt.x;
+            this.y = opt.y;
+            this.photoDiameter = opt.photoDiameter;
+            this.haloDiameter = opt.haloDiameter;
+            this.delay = rand(CONFIG.photoDelayMs[0], CONFIG.photoDelayMs[1]);
+            this.t = 0;
+            this.dead = false;
+        }
+
+        update(dt) {
+            this.t += dt;
+            const ttl = this.delay + CONFIG.photoFadeInMs + CONFIG.photoHoldMs + CONFIG.photoFadeOutMs;
+            if (this.t > ttl) this.dead = true;
+        }
+
+        draw(g) {
+            if (STATE.phase !== CONFIG.phase.photoShow) return;
+            const img = photoCache[this.imageIndex];
+            if (!img) return;
+            if (this.t < this.delay) return;
+
+            const t = this.t - this.delay;
+            let alpha = 1;
+            let scale = 1;
+
+            if (t < CONFIG.photoFadeInMs) {
+                const p = t / CONFIG.photoFadeInMs;
+                alpha = p;
+                scale = 0.88 + 0.12 * p;
+            } else if (t < CONFIG.photoFadeInMs + CONFIG.photoHoldMs) {
+                alpha = 1;
+                scale = 1;
+            } else {
+                const p = Math.min(1, (t - CONFIG.photoFadeInMs - CONFIG.photoHoldMs) / CONFIG.photoFadeOutMs);
+                alpha = 1 - p;
+                scale = 1 + 0.03 * p;
+            }
+
+            const haloR = this.haloDiameter * 0.5;
+            const halo = g.createRadialGradient(this.x, this.y, this.photoDiameter * 0.25, this.x, this.y, haloR);
+            halo.addColorStop(0, 'rgba(0,0,0,0.95)');
+            halo.addColorStop(0.62, 'rgba(0,0,0,0.82)');
+            halo.addColorStop(1, 'rgba(0,0,0,0)');
+            g.fillStyle = halo;
+            g.beginPath();
+            g.arc(this.x, this.y, haloR, 0, Math.PI * 2);
+            g.fill();
+
+            const size = this.photoDiameter * scale;
+            g.globalCompositeOperation = 'source-over';
+            g.globalAlpha = alpha;
+            g.drawImage(img, this.x - size * 0.5, this.y - size * 0.5, size, size);
+        }
+    }
+
+    function chooseBurstRadius(type) {
+        if (type === 'finale') {
+            return STATE.minDim * rand(CONFIG.finaleBurstRadius[0], CONFIG.finaleBurstRadius[1]);
+        }
+        if (type === 'mini') {
+            return STATE.minDim * rand(0.08, 0.18);
+        }
+        if (STATE.lowPowerMode) {
+            return STATE.minDim * rand(CONFIG.photoBurstRadiusLow[0], CONFIG.photoBurstRadiusLow[1]);
+        }
+        return STATE.minDim * rand(CONFIG.photoBurstRadiusHigh[0], CONFIG.photoBurstRadiusHigh[1]);
+    }
+
+    function countForBurst(type) {
+        if (type === 'finale') {
+            const range = STATE.lowPowerMode ? CONFIG.finaleStreakCountLow : CONFIG.finaleStreakCountHigh;
+            return randInt(range[0], range[1]);
+        }
+        if (type === 'mini') {
+            const range = STATE.lowPowerMode ? CONFIG.miniBurstCountLow : CONFIG.miniBurstCountHigh;
+            return randInt(range[0], range[1]);
+        }
+        const range = STATE.lowPowerMode ? CONFIG.photoStreakCountLow : CONFIG.photoStreakCountHigh;
+        return randInt(range[0], range[1]);
+    }
+
+    function paletteFor(type) {
+        if (type === 'finale') return CONFIG.finaleColorPalette;
+        if (type === 'mini') return ['#ffd9a6', '#ffc67d', '#ffb36a', '#fff1d4'];
+        return ['#4ea7ff', '#6b8dff', '#8f6cff', '#52e1ff', '#d080ff'];
+    }
+
+    function onRocketExplode(rocket) {
+        if (rocket.type === 'mini') {
+            const b = new Burst({
+                type: 'mini',
+                x: rocket.x,
+                y: rocket.y,
+                radius: chooseBurstRadius('mini'),
+                count: countForBurst('mini'),
+                palette: paletteFor('mini'),
+                kind: 'mini'
+            });
+            bursts.push(b);
+            return;
+        }
+
+        if (rocket.type === 'finale') {
+            const b = new Burst({
+                type: 'finale',
+                x: rocket.x,
+                y: rocket.y,
+                radius: chooseBurstRadius('finale'),
+                count: countForBurst('finale'),
+                palette: paletteFor('finale'),
+                kind: 'main'
+            });
+            bursts.push(b);
+            return;
+        }
+
+        const b = new Burst({
+            type: 'photo',
+            x: rocket.x,
+            y: rocket.y,
+            imageIndex: rocket.imageIndex,
+            radius: chooseBurstRadius('photo'),
+            count: countForBurst('photo'),
+            palette: paletteFor('photo'),
+            kind: 'main'
+        });
+        bursts.push(b);
+
+        photoOverlays.push(new PhotoOverlay({
+            imageIndex: rocket.imageIndex,
+            x: rocket.x,
+            y: rocket.y,
+            photoDiameter: b.photoDiameter,
+            haloDiameter: b.haloDiameter
+        }));
+
+        if (rocket.imageIndex === CONFIG.imageCount && STATE.finalePendingAt === 0) {
+            STATE.finalePendingAt = nowMs() + rand(CONFIG.finaleDelayAfterLastBurst[0], CONFIG.finaleDelayAfterLastBurst[1]);
+        }
+    }
+
+    function spawnMainPhotoRocket(index) {
+        const tx = STATE.width * rand(CONFIG.photoTargetX[0], CONFIG.photoTargetX[1]);
+        const ty = STATE.height * rand(CONFIG.photoTargetY[0], CONFIG.photoTargetY[1]);
+        rockets.push(new Rocket({
+            type: 'main',
+            imageIndex: index,
+            startX: STATE.width * rand(0.40, 0.60),
+            tx,
+            ty
+        }));
+    }
+
+    function spawnMiniRocket() {
+        const tx = STATE.width * rand(CONFIG.miniTargetX[0], CONFIG.miniTargetX[1]);
+        const ty = STATE.height * rand(CONFIG.miniTargetY[0], CONFIG.miniTargetY[1]);
+        rockets.push(new Rocket({
+            type: 'mini',
+            startX: STATE.width * rand(0.08, 0.92),
+            tx,
+            ty
+        }));
+    }
+
+    function spawnFinaleVolley() {
+        let volleyMin = CONFIG.finaleVolleyCountRange[0];
+        let volleyMax = CONFIG.finaleVolleyCountRange[1];
+
+        // 低帧降级：减少齐射数量
+        if (STATE.fps < 45 || STATE.lowPowerMode) {
+            volleyMin = Math.max(2, volleyMin - 1);
+            volleyMax = Math.max(volleyMin, volleyMax - 2);
+        }
+
+        const n = randInt(volleyMin, volleyMax);
+        for (let i = 0; i < n; i++) {
+            const tx = STATE.width * rand(CONFIG.finaleTargetX[0], CONFIG.finaleTargetX[1]);
+            const ty = STATE.height * rand(CONFIG.finaleTargetY[0], CONFIG.finaleTargetY[1]);
+            rockets.push(new Rocket({
+                type: 'finale',
+                startX: STATE.width * rand(0.08, 0.92),
+                tx,
+                ty
+            }));
+        }
+    }
+
+    function startFinale() {
+        STATE.phase = CONFIG.phase.finale;
+        STATE.finaleStartedAt = nowMs();
+        STATE.finaleEndsAt = STATE.finaleStartedAt + rand(CONFIG.finaleDuration[0], CONFIG.finaleDuration[1]);
+        STATE.nextFinaleVolleyAt = STATE.finaleStartedAt;
+        STATE.finalePendingAt = 0;
+        STATE.finaleFading = false;
+        STATE.finaleFadeStart = 0;
+
+        // 进入 finale 后不再显示照片层
+        photoOverlays.length = 0;
+    }
+
+    function updatePhotoShow(now) {
+        if (STATE.mainImageIndex <= CONFIG.imageCount && now >= STATE.nextPhotoLaunchAt) {
+            spawnMainPhotoRocket(STATE.mainImageIndex);
+            STATE.mainImageIndex += 1;
+            STATE.nextPhotoLaunchAt = now + rand(CONFIG.photoGapMs[0], CONFIG.photoGapMs[1]);
+        }
+
+        if (now >= STATE.nextMiniLaunchAt) {
+            spawnMiniRocket();
+            scheduleNextMini(now);
+        }
+
+        if (STATE.finalePendingAt > 0 && now >= STATE.finalePendingAt) {
+            startFinale();
+        }
+    }
+
+    function updateFinale(now) {
+        if (now >= STATE.nextFinaleVolleyAt) {
+            spawnFinaleVolley();
+            const [v0, v1] = CONFIG.finaleVolleyInterval;
+            let interval = rand(v0, v1);
+            if (STATE.fps < 45 || STATE.lowPowerMode) interval += 180;
+            STATE.nextFinaleVolleyAt = now + interval;
+        }
+
+        if (now >= STATE.nextMiniLaunchAt) {
+            spawnMiniRocket();
+            scheduleNextMini(now);
+        }
+
+        if (now >= STATE.finaleEndsAt) {
+            if (CONFIG.finaleEndMode === 'loop') {
+                STATE.finaleStartedAt = now;
+                STATE.finaleEndsAt = now + rand(CONFIG.finaleDuration[0], CONFIG.finaleDuration[1]);
+            } else if (CONFIG.finaleEndMode === 'fadeout') {
+                if (!STATE.finaleFading) {
+                    STATE.finaleFading = true;
+                    STATE.finaleFadeStart = now;
+                }
+            }
+        }
+    }
+
+    function scheduleNextMini(now) {
+        const range = STATE.lowPowerMode ? CONFIG.miniGapLow : CONFIG.miniGapHigh;
+        STATE.nextMiniLaunchAt = now + rand(range[0], range[1]);
+    }
+
+    function applyViewportSize() {
+        const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+        const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+
+        STATE.width = Math.max(1, Math.floor(vw));
+        STATE.height = Math.max(1, Math.floor(vh));
+        STATE.minDim = Math.min(STATE.width, STATE.height);
+
+        const dprBase = window.devicePixelRatio || 1;
+        const cap = STATE.lowPowerMode ? CONFIG.dprLowCap : CONFIG.dprHighCap;
+        STATE.dpr = Math.min(dprBase, cap);
+
+        canvas.width = Math.floor(STATE.width * STATE.dpr);
+        canvas.height = Math.floor(STATE.height * STATE.dpr);
+        canvas.style.width = STATE.width + 'px';
+        canvas.style.height = STATE.height + 'px';
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(STATE.dpr, STATE.dpr);
+
+        if (STATE.running) {
+            rebuildPhotoCache();
+        }
+    }
+
+    function loadImagesThenStart() {
+        let loaded = 0;
+        let failed = 0;
+
+        function done(ok) {
+            loaded += 1;
+            if (!ok) failed += 1;
+            loadingText.textContent = `加载图片 ${loaded}/${CONFIG.imageCount}`;
+            if (loaded < CONFIG.imageCount) return;
+
+            rebuildPhotoCache();
+            loadingText.textContent = failed > 0 ? `有 ${failed} 张图片加载失败` : '';
+            if (failed > 0 && location.protocol === 'file:') {
+                protocolTip.style.display = 'block';
+                protocolTip.textContent = '请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网';
+            }
+            beginLoop();
+        }
+
+        for (let i = 1; i <= CONFIG.imageCount; i++) {
+            const img = new Image();
+            img.onload = () => done(true);
+            img.onerror = () => done(false);
+            img.src = `${CONFIG.imagePrefix}${i}.jpg`;
+            images[i] = img;
+        }
+    }
+
+    function rebuildPhotoCache() {
+        const baseR = STATE.minDim * 0.26;
+        const size = baseR * 2 + 4;
+
+        for (let i = 1; i <= CONFIG.imageCount; i++) {
+            const img = images[i];
+            if (!img || !img.complete || img.naturalWidth === 0) {
+                photoCache[i] = null;
+                continue;
+            }
+
+            const off = document.createElement('canvas');
+            off.width = Math.ceil(size * STATE.dpr);
+            off.height = Math.ceil(size * STATE.dpr);
+            const g = off.getContext('2d');
+            if (!g) {
+                photoCache[i] = null;
+                continue;
+            }
+
+            g.setTransform(1, 0, 0, 1, 0, 0);
+            g.scale(STATE.dpr, STATE.dpr);
+            const cx = size * 0.5;
+            const cy = size * 0.5;
+
+            g.save();
+            g.beginPath();
+            g.arc(cx, cy, baseR, 0, Math.PI * 2);
+            g.clip();
+
+            const ir = img.naturalWidth / img.naturalHeight;
+            let dw;
+            let dh;
+            if (ir >= 1) {
+                dh = baseR * 2;
+                dw = dh * ir;
+            } else {
+                dw = baseR * 2;
+                dh = dw / ir;
+            }
+            g.drawImage(img, cx - dw * 0.5, cy - dh * 0.5, dw, dh);
+
+            const featherInner = baseR * (1 - CONFIG.featherRatio);
+            const mask = g.createRadialGradient(cx, cy, featherInner, cx, cy, baseR);
+            mask.addColorStop(0, 'rgba(255,255,255,1)');
+            mask.addColorStop(1, 'rgba(255,255,255,0)');
+            g.globalCompositeOperation = 'destination-in';
+            g.fillStyle = mask;
+            g.beginPath();
+            g.arc(cx, cy, baseR, 0, Math.PI * 2);
+            g.fill();
+            g.restore();
+
+            photoCache[i] = off;
+        }
+    }
+
+    function beginLoop() {
+        STATE.running = true;
+        STATE.phase = CONFIG.phase.photoShow;
+        STATE.mainImageIndex = 1;
+        STATE.finalePendingAt = 0;
+
+        const n = nowMs();
+        lastTs = n;
+        STATE.nextPhotoLaunchAt = n + 300;
+        scheduleNextMini(n);
+
+        requestAnimationFrame(loop);
+    }
+
+    function pushDt(dt) {
+        if (dtCount < CONFIG.dtWindowSize) {
+            dtRing[dtIndex] = dt;
+            dtSum += dt;
+            dtCount += 1;
+            dtIndex = (dtIndex + 1) % CONFIG.dtWindowSize;
+        } else {
+            dtSum -= dtRing[dtIndex];
+            dtRing[dtIndex] = dt;
+            dtSum += dt;
+            dtIndex = (dtIndex + 1) % CONFIG.dtWindowSize;
+        }
+
+        STATE.avgDt = dtSum / Math.max(1, dtCount);
+        STATE.fps = Math.round(1000 / STATE.avgDt);
+    }
+
+    function updateQuality() {
+        if (!STATE.lowPowerMode) {
+            if (STATE.avgDt > CONFIG.lowEnterDt || STATE.fps < CONFIG.lowEnterFps) {
+                STATE.lowPowerMode = true;
+                STATE.recoverCounter = 0;
+                applyViewportSize();
+            }
+            return;
+        }
+
+        if (STATE.avgDt < CONFIG.highExitDt) {
+            STATE.recoverCounter += 1;
+            if (STATE.recoverCounter >= CONFIG.highRecoverFrames) {
+                STATE.lowPowerMode = false;
+                STATE.recoverCounter = 0;
+                applyViewportSize();
+            }
+        } else {
+            STATE.recoverCounter = 0;
+        }
+    }
+
+    function updateEntities(dt, now) {
+        if (STATE.phase === CONFIG.phase.photoShow) {
+            updatePhotoShow(now);
+        } else {
+            updateFinale(now);
+        }
+
+        for (let i = rockets.length - 1; i >= 0; i--) {
+            rockets[i].update(dt);
+            if (rockets[i].done) rockets.splice(i, 1);
+        }
+
+        for (let i = bursts.length - 1; i >= 0; i--) {
+            bursts[i].update(dt);
+            if (bursts[i].dead) bursts.splice(i, 1);
+        }
+
+        for (let i = photoOverlays.length - 1; i >= 0; i--) {
+            photoOverlays[i].update(dt);
+            if (photoOverlays[i].dead) photoOverlays.splice(i, 1);
+        }
+
+        for (let i = activeParticles.length - 1; i >= 0; i--) {
+            activeParticles[i].update(dt);
+            if (!activeParticles[i].active) recycleParticle(i);
+        }
+    }
+
+    function drawBackgroundFog(now) {
+        if (STATE.phase !== CONFIG.phase.finale) return;
+
+        const t = now * 0.001;
+        const alpha = STATE.lowPowerMode ? 0.045 : 0.06;
+        const x = STATE.width * (0.5 + Math.sin(t * 0.17) * 0.18);
+        const y = STATE.height * 0.45;
+        const r = STATE.minDim * 0.72;
+
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, `rgba(170,24,24,${alpha})`);
+        g.addColorStop(1, 'rgba(170,24,24,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function draw(now) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        const clearA = STATE.lowPowerMode ? CONFIG.clearAlphaLow : CONFIG.clearAlphaHigh;
+        ctx.fillStyle = `rgba(0,0,0,${clearA})`;
+        ctx.fillRect(0, 0, STATE.width, STATE.height);
+
+        drawBackgroundFog(now);
+
+        for (let i = 0; i < rockets.length; i++) rockets[i].draw(ctx);
+
+        let maxBlur = 0;
+        for (let i = 0; i < bursts.length; i++) {
+            const b = bursts[i].blur();
+            if (b > maxBlur) maxBlur = b;
+        }
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        if (maxBlur > 0) {
+            ctx.shadowBlur = maxBlur;
+            ctx.shadowColor = STATE.phase === CONFIG.phase.finale
+                ? 'rgba(255,220,170,0.95)'
+                : 'rgba(180,220,255,0.95)';
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        for (let i = 0; i < activeParticles.length; i++) {
+            activeParticles[i].draw(ctx);
+        }
+
+        for (let i = 0; i < bursts.length; i++) {
+            bursts[i].drawCenterFlash(ctx);
+        }
+        ctx.restore();
+
+        if (STATE.phase === CONFIG.phase.photoShow) {
+            ctx.save();
+            for (let i = 0; i < photoOverlays.length; i++) {
+                photoOverlays[i].draw(ctx);
+            }
+            ctx.restore();
+        }
+
+        if (STATE.phase === CONFIG.phase.finale && CONFIG.finaleEndMode === 'fadeout' && STATE.finaleFading) {
+            const p = Math.min(1, (now - STATE.finaleFadeStart) / CONFIG.finaleFadeoutMs);
+            ctx.fillStyle = `rgba(0,0,0,${p * 0.9})`;
+            ctx.fillRect(0, 0, STATE.width, STATE.height);
+        }
+    }
+
+    function updateDebug() {
+        if (!debugOn) return;
+        debugPanel.textContent =
+            `FPS: ${STATE.fps}\n` +
+            `particles: ${activeParticles.length}\n` +
+            `phase: ${STATE.phase}\n` +
+            `dpr: ${STATE.dpr.toFixed(2)}\n` +
+            `mode: ${STATE.lowPowerMode ? 'LowPower' : 'Normal'}`;
+    }
+
+    function loop(ts) {
+        if (!STATE.running) return;
+        requestAnimationFrame(loop);
+
+        const dt = Math.min(50, Math.max(8, ts - lastTs));
+        lastTs = ts;
+
+        pushDt(dt);
+        updateQuality();
+        updateEntities(dt, ts);
+
+        if (STATE.phase === CONFIG.phase.finale && CONFIG.finaleEndMode === 'fadeout' && STATE.finaleFading) {
+            if (ts - STATE.finaleFadeStart > CONFIG.finaleFadeoutMs) {
+                // 停止发射，仅等待余粒子自然消散
+                STATE.nextFinaleVolleyAt = Infinity;
+            }
+        }
+
+        draw(ts);
+        updateDebug();
+    }
+
+    function handleStartGesture() {
+        if (STATE.running) return;
+
+        if (location.protocol === 'file:') {
+            protocolTip.style.display = 'block';
+            protocolTip.textContent = '请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网';
+        }
+
+        startOverlay.style.display = 'none';
+        loadingText.textContent = '正在加载图片...';
+        loadImagesThenStart();
+    }
+
+    function bindStartGestures() {
+        document.addEventListener('touchstart', handleStartGesture, { passive: true, once: true });
+        document.addEventListener('click', handleStartGesture, { passive: true, once: true });
+    }
+
+    function bindResize() {
+        window.addEventListener('resize', applyViewportSize, { passive: true });
+        window.addEventListener('orientationchange', applyViewportSize, { passive: true });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', applyViewportSize, { passive: true });
+        }
+    }
+
+    function bindDebugToggle() {
+        const toggle = () => {
+            debugOn = !debugOn;
+            debugToggle.textContent = debugOn ? 'Debug: On' : 'Debug: Off';
+            debugPanel.style.display = debugOn ? 'block' : 'none';
+        };
+
+        debugToggle.addEventListener('touchstart', toggle, { passive: true });
+        debugToggle.addEventListener('click', toggle, { passive: true });
+    }
+
+    function init() {
+        applyViewportSize();
+        bindResize();
+        bindStartGestures();
+        bindDebugToggle();
+
+        if (location.protocol === 'file:') {
+            protocolTip.style.display = 'block';
+            protocolTip.textContent = '请用 http(s) 打开或放到同一目录的服务器/公众号H5/本地局域网';
+        }
+    }
+
+    init();
+})();
+</script>
+</body>
+</html>
